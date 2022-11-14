@@ -144,9 +144,6 @@ def create_moviedb_dataset(filename: str = 'moviedb_data.csv'):
         filename (str, optional): The name of the file to save the dataset to. Defaults to 'moviedb_data.csv'.
     """
 
-    # set logging level
-    logging.basicConfig(level=logging.INFO)
-
     logging.info('Loading IMDb data...')
     df = load_IMDb_dataframe('title.basics.tsv.gz')
 
@@ -188,4 +185,7 @@ def create_moviedb_dataset(filename: str = 'moviedb_data.csv'):
 
 
 if __name__ == '__main__':
+    # set logging level
+    logging.basicConfig(level=logging.INFO)
+
     create_moviedb_dataset()
