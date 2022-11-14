@@ -156,13 +156,30 @@ def create_moviedb_dataset(filename: str = 'moviedb_data.csv'):
     # keep only unique IMDb IDs and store them in a list
     imdb_ids = df['tconst'].unique().tolist()
 
+    # sort the list
+    imdb_ids.sort()
+
+    # If the csv already exists, get the last IMDb ID that was processed
+    data_path = os.path.join(os.path.dirname(__file__), '..', 'data')
+    csv_path = os.path.join(data_path, filename)
+    csv_already_exists = os.path.exists(csv_path)
+
+    if csv_already_exists:
+        df = pd.read_csv(csv_path)
+        last_imdb_id = df['imdb_id'].iloc[-1]
+        last_imdb_id_index = imdb_ids.index(last_imdb_id)
+        imdb_ids = imdb_ids[last_imdb_id_index + 1:]
+
     logging.info('Getting features from MovieDB...')
     movies_df = get_movies_features_for_list_imdb_ids(imdb_ids, nb_workers=10)
 
+    # sort the dataframe by IMDb ID
+    movies_df.sort_values(by='imdb_id', inplace=True)
+
     logging.info('Saving features to CSV...')
-    # save the dataframe to a CSV file
-    data_path = os.path.join(os.path.dirname(__file__), '..', 'data')
-    movies_df.to_csv(os.path.join(data_path, filename), index=False)
+    # save the dataframe to a CSV file (append if the file already exists)
+    movies_df.to_csv(csv_path, index=False,
+                     mode='a' if csv_already_exists else 'w', header=not csv_already_exists)
 
 
 def get_movies_features_for_list_imdb_ids(imdb_ids: list, nb_workers: int = 10) -> pd.DataFrame:
@@ -186,11 +203,13 @@ def get_movies_features_for_list_imdb_ids(imdb_ids: list, nb_workers: int = 10) 
 
         def run(self):
             while True:
-                # get the next 10 IMDb IDs
-                next_ids = [self.queue.get() for _ in range(100)]
-
-                # remove the None elements
-                next_ids = [x for x in next_ids if x is not None]
+                # get the next IMDb IDs
+                next_ids = []
+                for _ in range(100):
+                    next_id = self.queue.get()
+                    if next_id is None:
+                        break
+                    next_ids.append(next_id)
 
                 if not next_ids:
                     break
