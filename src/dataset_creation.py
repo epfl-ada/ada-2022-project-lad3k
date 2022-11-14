@@ -83,6 +83,7 @@ def get_movie_features(movie_id: int, api_key: str = config.MOVIE_DB_API_KEY) ->
         dict: The features of the movie with the given ID from the MovieDB database.
             The dict contains the following keys (all optional):
             - id: The IMDb ID of the movie.
+            - overview: The overview of the movie.
             - providers: The streaming providers of the movie. {<country>: [<providers>]}
             - budget: The budget of the movie.
             - revenue: The revenue of the movie.
@@ -125,6 +126,7 @@ def get_movie_features(movie_id: int, api_key: str = config.MOVIE_DB_API_KEY) ->
     # get the features
     features = {
         'imdb_id': movie_response['imdb_id'],
+        'overview': movie_response['overview'],
         'providers': providers,
         'budget': movie_response['budget'],
         'revenue': movie_response['revenue'],
@@ -145,14 +147,15 @@ def create_moviedb_dataset(filename: str = 'moviedb_data.csv'):
     """
 
     logging.info('Loading IMDb data...')
-    df = load_IMDb_dataframe('title.basics.tsv.gz')
+    df = load_IMDb_dataframe('title.basics.tsv.gz')[:10]
 
     # keep only unique IMDb IDs and store them in a list
     imdb_ids = df['tconst'].unique().tolist()
 
     # Create a new dataframe with the features of the movies
     movies_df = pd.DataFrame(
-        columns=['imdb_id', 'providers', 'budget', 'revenue', 'production_companies', 'production_countries'])
+        columns=['imdb_id', 'overview', 'providers', 'budget', 'revenue', 'production_companies',
+                 'production_countries'])
 
     logging.info('Getting features from MovieDB...')
     for imdb_id in tqdm(imdb_ids):
