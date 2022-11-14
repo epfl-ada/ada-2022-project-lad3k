@@ -153,6 +153,8 @@ def create_moviedb_dataset(filename: str = 'moviedb_data.csv'):
     logging.info('Loading IMDb data...')
     df = load_IMDb_dataframe('title.basics.tsv.gz')
 
+    df = df[df['titleType'] == 'movie']
+
     # keep only unique IMDb IDs and store them in a list
     imdb_ids = df['tconst'].unique().tolist()
 
