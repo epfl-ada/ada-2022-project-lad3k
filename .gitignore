@@ -1,6 +1,7 @@
 .idea/
 .DS_Store
 .vscode/
+data/imdb/*
 # Mostly default gitignore for Python projects
 # Byte-compiled / optimized / DLL files
 __pycache__/
