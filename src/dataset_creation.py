@@ -1,9 +1,12 @@
 import logging
 import os
+import queue
+from threading import Thread
 
 import pandas as pd
 import requests
 from tqdm import tqdm
+import time
 
 import config
 
@@ -147,39 +150,13 @@ def create_moviedb_dataset(filename: str = 'moviedb_data.csv'):
     """
 
     logging.info('Loading IMDb data...')
-    df = load_IMDb_dataframe('title.basics.tsv.gz')[:10]
+    df = load_IMDb_dataframe('title.basics.tsv.gz')
 
     # keep only unique IMDb IDs and store them in a list
     imdb_ids = df['tconst'].unique().tolist()
 
-    # Create a new dataframe with the features of the movies
-    movies_df = pd.DataFrame(
-        columns=['imdb_id', 'overview', 'providers', 'budget', 'revenue', 'production_companies',
-                 'production_countries'])
-
     logging.info('Getting features from MovieDB...')
-    for imdb_id in tqdm(imdb_ids):
-        # find the movie in the MovieDB database
-        movie_id = find_in_moviedb(imdb_id)
-
-        # if the movie is not found, skip it
-        if movie_id == -1:
-            logging.warning(
-                'Movie with IMDb ID %s not found in the MovieDB database', imdb_id)
-            continue
-
-        # get the features of the movie
-        features = get_movie_features(movie_id)
-
-        # if the features are not found, skip it
-        if not features:
-            logging.warning(
-                'Features of movie with IMDb ID %s not found in the MovieDB database', imdb_id)
-            continue
-
-        # add the features to the dataframe with pandas.concat since append will is deprecated
-        movies_df = pd.concat(
-            [movies_df, pd.DataFrame([features])], ignore_index=True)
+    movies_df = get_movies_features_for_list_imdb_ids(imdb_ids, nb_workers=20)
 
     logging.info('Saving features to CSV...')
     # save the dataframe to a CSV file
@@ -187,8 +164,107 @@ def create_moviedb_dataset(filename: str = 'moviedb_data.csv'):
     movies_df.to_csv(os.path.join(data_path, filename), index=False)
 
 
+def get_movies_features_for_list_imdb_ids(imdb_ids: list, nb_workers: int = 10) -> pd.DataFrame:
+    """This function gets the features of the movies given by imdb_ids
+
+    Args:
+        imdb_ids (list): The list of IMDb IDs of the movies to get the features from.
+        nb_workers (int, optional): The number of workers to use. Defaults to 10.
+
+    Returns:
+        pd.DataFrame: The dataframe containing the features of the movies.
+    """
+
+    class Worker(Thread):
+        def __init__(self, request_queue):
+            Thread.__init__(self)
+            self.queue = request_queue
+            self.results = pd.DataFrame(
+                columns=['imdb_id', 'overview', 'providers', 'budget', 'revenue', 'production_companies',
+                         'production_countries'])
+
+        def run(self):
+            while True:
+                imdb_id = self.queue.get()
+                if imdb_id is None:
+                    break
+
+                movie_id = find_in_moviedb(imdb_id)
+
+                # if the movie is not found, skip it
+                if movie_id == -1:
+                    logging.info(
+                        'Movie with IMDb ID %s not found in the MovieDB database', imdb_id)
+                    continue
+
+                # get the features of the movie
+                features = get_movie_features(movie_id)
+
+                # if the features are not found, skip it
+                if not features:
+                    logging.info(
+                        'Features of movie with IMDb ID %s not found in the MovieDB database', imdb_id)
+                    continue
+
+                # add the features to the dataframe with pandas.concat since append will is deprecated
+                self.results = pd.concat(
+                    [self.results, pd.DataFrame([features])], ignore_index=True)
+
+    def listener(queue):
+        total_length = len(imdb_ids) + nb_workers
+
+        pbar = tqdm(total=total_length)
+        # set pbar to (len(imdb_ids) - queue.qsize()) to show the progress of the requests
+        last_pbar_value = 0
+        while True:
+            queue_size = queue.qsize()
+            pbar.update((total_length - queue_size) - last_pbar_value)
+            last_pbar_value = total_length - queue_size
+            if queue.qsize() == 0:
+                break
+            time.sleep(1)
+
+    # Create queue and add addresses
+    q = queue.Queue()
+
+    for imdb_id in imdb_ids:
+        q.put(imdb_id)
+
+    # Workers keep working till they receive an empty string
+    for _ in range(nb_workers):
+        q.put(None)
+
+    # add listener to queue to print progress with tqdm
+    listener_thread = Thread(target=listener, args=(q,))
+    listener_thread.start()
+
+    # Create workers and add tot the queue
+    workers = []
+    for _ in range(nb_workers):
+        worker = Worker(q)
+        worker.start()
+        workers.append(worker)
+
+    # Join workers to wait till they finished
+    for worker in workers:
+        worker.join()
+
+    # terminate the listener
+    listener_thread.join()
+
+    # Combine results from all workers
+    results = pd.DataFrame(
+        columns=['imdb_id', 'overview', 'providers', 'budget', 'revenue', 'production_companies',
+                 'production_countries'])
+    for worker in workers:
+        results = pd.concat(
+            [results, worker.results], ignore_index=True)
+
+    return results
+
+
 if __name__ == '__main__':
     # set logging level
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.WARNING)
 
     create_moviedb_dataset()
