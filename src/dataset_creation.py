@@ -1,12 +1,13 @@
 import logging
 import os
 import queue
+import time
+from multiprocessing import Pool
 from threading import Thread
 
 import pandas as pd
 import requests
 from tqdm import tqdm
-import time
 
 import config
 
@@ -156,7 +157,7 @@ def create_moviedb_dataset(filename: str = 'moviedb_data.csv'):
     imdb_ids = df['tconst'].unique().tolist()
 
     logging.info('Getting features from MovieDB...')
-    movies_df = get_movies_features_for_list_imdb_ids(imdb_ids, nb_workers=20)
+    movies_df = get_movies_features_for_list_imdb_ids(imdb_ids, nb_workers=10)
 
     logging.info('Saving features to CSV...')
     # save the dataframe to a CSV file
@@ -185,30 +186,31 @@ def get_movies_features_for_list_imdb_ids(imdb_ids: list, nb_workers: int = 10) 
 
         def run(self):
             while True:
-                imdb_id = self.queue.get()
-                if imdb_id is None:
+                # get the next 10 IMDb IDs
+                next_ids = [self.queue.get() for _ in range(100)]
+
+                # remove the None elements
+                next_ids = [x for x in next_ids if x is not None]
+
+                if not next_ids:
                     break
 
-                movie_id = find_in_moviedb(imdb_id)
+                # Get the features with a multiprocessing pool
+                with Pool(processes=5) as pool:
+                    movies_ids = pool.map(find_in_moviedb, next_ids)
 
-                # if the movie is not found, skip it
-                if movie_id == -1:
-                    logging.info(
-                        'Movie with IMDb ID %s not found in the MovieDB database', imdb_id)
-                    continue
+                    # Remove the -1 elements
+                    movies_ids = [x for x in movies_ids if x != -1]
 
-                # get the features of the movie
-                features = get_movie_features(movie_id)
+                    features_list = pool.starmap(
+                        get_movie_features, zip(movies_ids))
 
-                # if the features are not found, skip it
-                if not features:
-                    logging.info(
-                        'Features of movie with IMDb ID %s not found in the MovieDB database', imdb_id)
-                    continue
+                    # Remove the empty dicts
+                    features_list = [x for x in features_list if x]
 
-                # add the features to the dataframe with pandas.concat since append will is deprecated
-                self.results = pd.concat(
-                    [self.results, pd.DataFrame([features])], ignore_index=True)
+                for features in features_list:
+                    self.results = pd.concat(
+                        [self.results, pd.DataFrame([features])], ignore_index=True)
 
     def listener(queue):
         total_length = len(imdb_ids) + nb_workers
