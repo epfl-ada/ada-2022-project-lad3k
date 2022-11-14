@@ -70,8 +70,8 @@ def find_in_moviedb(imdb_id: str, api_key: str = config.MOVIE_DB_API_KEY) -> int
     # if there is more than one element, it's an unexpected error
     if len(response_list) > 1:
         error_message = f'Unexpected error: more than one element found for IMDb ID {imdb_id}'
-        logging.warning(error_message)
-        raise ValueError(error_message)
+        logging.error(error_message)
+        return -1
 
     return response_list[0]['id'] if len(response_list) == 1 else -1
 
@@ -172,16 +172,30 @@ def create_moviedb_dataset(filename: str = 'moviedb_data.csv'):
         last_imdb_id_index = imdb_ids.index(last_imdb_id)
         imdb_ids = imdb_ids[last_imdb_id_index + 1:]
 
-    logging.info('Getting features from MovieDB...')
-    movies_df = get_movies_features_for_list_imdb_ids(imdb_ids, nb_workers=10)
+    # We save the data in a CSV file each X movies
+    # This is to avoid losing all the data if the program crashes
+    for i in range(0, len(imdb_ids), 10000):
+        upper_bound = min(i + 10000, len(imdb_ids))
+        # get the next x IMDb IDs
+        imdb_ids_subset = imdb_ids[i:upper_bound]
 
-    # sort the dataframe by IMDb ID
-    movies_df.sort_values(by='imdb_id', inplace=True)
+        # f'Processing IMDb IDs {imdb_ids_subset[0]}-{imdb_ids_subset[-1]}, representing <number> % of the data...'
+        logging.info(
+            f'Processing IMDb IDs {imdb_ids_subset[0]}-{imdb_ids_subset[-1]}, ' +
+            f'representing {round(upper_bound / len(imdb_ids) * 100)} % of the data...')
 
-    logging.info('Saving features to CSV...')
-    # save the dataframe to a CSV file (append if the file already exists)
-    movies_df.to_csv(csv_path, index=False,
-                     mode='a' if csv_already_exists else 'w', header=not csv_already_exists)
+        movies_df = get_movies_features_for_list_imdb_ids(
+            imdb_ids_subset, nb_workers=10)
+        movies_df.sort_values(by='imdb_id', inplace=True)
+
+        if csv_already_exists:
+            movies_df.to_csv(csv_path, mode='a', header=False, index=False)
+        else:
+            movies_df.to_csv(csv_path, index=False)
+            csv_already_exists = True
+
+        logging.info(f'Done processing IMDb IDs {imdb_ids_subset[0]}-{imdb_ids_subset[-1]}, ' +
+                     f'representing {upper_bound / len(imdb_ids) * 100} % of the data...')
 
 
 def get_movies_features_for_list_imdb_ids(imdb_ids: list, nb_workers: int = 10) -> pd.DataFrame:
@@ -205,11 +219,13 @@ def get_movies_features_for_list_imdb_ids(imdb_ids: list, nb_workers: int = 10) 
 
         def run(self):
             while True:
+                should_stop = False
                 # get the next IMDb IDs
                 next_ids = []
                 for _ in range(100):
                     next_id = self.queue.get()
                     if next_id is None:
+                        should_stop = True
                         break
                     next_ids.append(next_id)
 
@@ -232,6 +248,9 @@ def get_movies_features_for_list_imdb_ids(imdb_ids: list, nb_workers: int = 10) 
                 for features in features_list:
                     self.results = pd.concat(
                         [self.results, pd.DataFrame([features])], ignore_index=True)
+
+                if should_stop:
+                    break
 
     def listener(queue):
         total_length = len(imdb_ids) + nb_workers
@@ -288,6 +307,6 @@ def get_movies_features_for_list_imdb_ids(imdb_ids: list, nb_workers: int = 10) 
 
 if __name__ == '__main__':
     # set logging level
-    logging.basicConfig(level=logging.WARNING)
+    logging.basicConfig(level=logging.INFO)
 
     create_moviedb_dataset()
