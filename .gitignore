@@ -1,4 +1,3 @@
-src/config.py #we don't want to accidentally push our keys to github
 .idea/
 .DS_Store
 .vscode/
