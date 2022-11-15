@@ -188,6 +188,10 @@ def create_moviedb_dataset(filename: str = 'moviedb_data.csv'):
             imdb_ids_subset, nb_workers=10)
         movies_df.sort_values(by='imdb_id', inplace=True)
 
+        # if some values of imdb_id are not in the bounds (due to redirects), remove them
+        movies_df = movies_df[
+            (movies_df['imdb_id'] >= imdb_ids_subset[0]) & (movies_df['imdb_id'] <= imdb_ids_subset[-1])]
+
         if csv_already_exists:
             movies_df.to_csv(csv_path, mode='a', header=False, index=False)
         else:
