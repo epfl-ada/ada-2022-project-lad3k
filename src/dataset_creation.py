@@ -1,3 +1,4 @@
+import csv
 import logging
 import os
 import queue
@@ -8,7 +9,6 @@ from threading import Thread
 import pandas as pd
 import requests
 from tqdm import tqdm
-import csv
 
 import config
 
@@ -192,6 +192,9 @@ def create_moviedb_dataset(filename: str = 'moviedb_data.tsv'):
 
         movies_df = get_movies_features_for_list_imdb_ids(
             imdb_ids_subset, nb_workers=10)
+
+        movies_df = movies_df[movies_df['imdb_id'].str[2:] != '']
+
         movies_df.sort_values(
             by='imdb_id', key=lambda x: x.str[2:].astype(int), inplace=True)
 
