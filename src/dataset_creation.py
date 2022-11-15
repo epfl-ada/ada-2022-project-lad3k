@@ -210,6 +210,10 @@ def get_movies_features_for_list_imdb_ids(imdb_ids: list, nb_workers: int = 10) 
     """
 
     class Worker(Thread):
+        """This class represents a worker that gets the features of a movie.
+        It is used to parallelize the process.
+        """
+
         def __init__(self, request_queue, error_queue):
             Thread.__init__(self)
             self.queue = request_queue
@@ -219,13 +223,17 @@ def get_movies_features_for_list_imdb_ids(imdb_ids: list, nb_workers: int = 10) 
                          'production_countries'])
 
         def run(self):
-            # needed to put the errors in the error queue
+            # We use a try/except block to catch any exception that might occur and propagate it to the main thread
+            # via the error queue, if not done like this the program will not crash and the error will be displayed
+            # but not handled
             try:
                 while True:
+                    # To know when the queue is empty, we use a special value None
+                    # So if we get None, we stop the loop (with should_stop)
                     should_stop = False
                     # get the next IMDb IDs
                     next_ids = []
-                    for _ in range(10):
+                    for _ in range(100):
                         next_id = self.queue.get()
                         if next_id is None:
                             should_stop = True
@@ -238,13 +246,12 @@ def get_movies_features_for_list_imdb_ids(imdb_ids: list, nb_workers: int = 10) 
                     with Pool(processes=5) as pool:
                         # pool error handling
                         try:
-
                             movies_ids = pool.map(find_in_moviedb, next_ids)
 
                             # Remove the -1 elements
                             movies_ids = [x for x in movies_ids if x != -1]
 
-                            # use starmap and handle errors
+                            # use starmap
                             features_list = pool.starmap(
                                 get_movie_features, zip(movies_ids))
 
