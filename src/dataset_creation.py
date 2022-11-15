@@ -51,7 +51,7 @@ def find_in_moviedb(imdb_id: str, api_key: str = config.MOVIE_DB_API_KEY) -> int
         return [item for sublist in list_to_flatten for item in sublist]
 
     # check if the IMDb ID is valid
-    if not imdb_id.startswith('tt') and len(imdb_id) != 9 and not imdb_id[2:].isdigit():
+    if not imdb_id.startswith('tt') and not imdb_id[2:].isdigit():
         logging.warning('Invalid IMDb ID: %s', imdb_id)
         return -1
 
@@ -159,7 +159,7 @@ def create_moviedb_dataset(filename: str = 'moviedb_data.csv'):
     imdb_ids = df['tconst'].unique().tolist()
 
     # sort the list
-    imdb_ids.sort()
+    imdb_ids.sort(key=lambda x: int(x[2:]))
 
     # If the csv already exists, get the last IMDb ID that was processed
     data_path = os.path.join(os.path.dirname(__file__), '..', 'data')
@@ -186,7 +186,8 @@ def create_moviedb_dataset(filename: str = 'moviedb_data.csv'):
 
         movies_df = get_movies_features_for_list_imdb_ids(
             imdb_ids_subset, nb_workers=10)
-        movies_df.sort_values(by='imdb_id', inplace=True)
+        movies_df.sort_values(
+            by='imdb_id', key=lambda x: x.str[2:].astype(int), inplace=True)
 
         # if some values of imdb_id are not in the bounds (due to redirects), remove them
         movies_df = movies_df[
@@ -344,4 +345,11 @@ if __name__ == '__main__':
     # set logging level
     logging.basicConfig(level=logging.INFO)
 
-    create_moviedb_dataset()
+    while True:
+        try:
+            create_moviedb_dataset()
+            break
+        except Exception as e:
+            print(e)
+            time.sleep(10)
+            print('Retrying...', flush=True)
