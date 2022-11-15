@@ -210,49 +210,60 @@ def get_movies_features_for_list_imdb_ids(imdb_ids: list, nb_workers: int = 10) 
     """
 
     class Worker(Thread):
-        def __init__(self, request_queue):
+        def __init__(self, request_queue, error_queue):
             Thread.__init__(self)
             self.queue = request_queue
+            self.error_queue = error_queue
             self.results = pd.DataFrame(
                 columns=['imdb_id', 'overview', 'providers', 'budget', 'revenue', 'production_companies',
                          'production_countries'])
 
         def run(self):
-            while True:
-                should_stop = False
-                # get the next IMDb IDs
-                next_ids = []
-                for _ in range(100):
-                    next_id = self.queue.get()
-                    if next_id is None:
-                        should_stop = True
+            # needed to put the errors in the error queue
+            try:
+                while True:
+                    should_stop = False
+                    # get the next IMDb IDs
+                    next_ids = []
+                    for _ in range(10):
+                        next_id = self.queue.get()
+                        if next_id is None:
+                            should_stop = True
+                            break
+                        next_ids.append(next_id)
+
+                    if not next_ids:
                         break
-                    next_ids.append(next_id)
+                    # Get the features with a multiprocessing pool
+                    with Pool(processes=5) as pool:
+                        # pool error handling
+                        try:
 
-                if not next_ids:
-                    break
+                            movies_ids = pool.map(find_in_moviedb, next_ids)
 
-                # Get the features with a multiprocessing pool
-                with Pool(processes=5) as pool:
-                    movies_ids = pool.map(find_in_moviedb, next_ids)
+                            # Remove the -1 elements
+                            movies_ids = [x for x in movies_ids if x != -1]
 
-                    # Remove the -1 elements
-                    movies_ids = [x for x in movies_ids if x != -1]
+                            # use starmap and handle errors
+                            features_list = pool.starmap(
+                                get_movie_features, zip(movies_ids))
 
-                    features_list = pool.starmap(
-                        get_movie_features, zip(movies_ids))
+                            # Remove the empty dicts
+                            features_list = [x for x in features_list if x]
+                        except Exception as e:
+                            self.error_queue.put(e)
+                            break
 
-                    # Remove the empty dicts
-                    features_list = [x for x in features_list if x]
+                    for features in features_list:
+                        self.results = pd.concat(
+                            [self.results, pd.DataFrame([features])], ignore_index=True)
 
-                for features in features_list:
-                    self.results = pd.concat(
-                        [self.results, pd.DataFrame([features])], ignore_index=True)
+                    if should_stop or self.error_queue.qsize() > 0:
+                        break
+            except Exception as e:
+                self.error_queue.put(e)
 
-                if should_stop:
-                    break
-
-    def listener(queue):
+    def listener(queue, error_queue):
         total_length = len(imdb_ids) + nb_workers
 
         pbar = tqdm(total=total_length)
@@ -262,12 +273,14 @@ def get_movies_features_for_list_imdb_ids(imdb_ids: list, nb_workers: int = 10) 
             queue_size = queue.qsize()
             pbar.update((total_length - queue_size) - last_pbar_value)
             last_pbar_value = total_length - queue_size
-            if queue.qsize() == 0:
+
+            if queue.qsize() == 0 or error_queue.qsize() > 0:
                 break
             time.sleep(1)
 
     # Create queue and add addresses
     q = queue.Queue()
+    errors = queue.Queue()
 
     for imdb_id in imdb_ids:
         q.put(imdb_id)
@@ -277,13 +290,13 @@ def get_movies_features_for_list_imdb_ids(imdb_ids: list, nb_workers: int = 10) 
         q.put(None)
 
     # add listener to queue to print progress with tqdm
-    listener_thread = Thread(target=listener, args=(q,))
+    listener_thread = Thread(target=listener, args=(q, errors))
     listener_thread.start()
 
     # Create workers and add tot the queue
     workers = []
     for _ in range(nb_workers):
-        worker = Worker(q)
+        worker = Worker(q, errors)
         worker.start()
         workers.append(worker)
 
@@ -293,6 +306,17 @@ def get_movies_features_for_list_imdb_ids(imdb_ids: list, nb_workers: int = 10) 
 
     # terminate the listener
     listener_thread.join()
+
+    if not errors.empty():
+        error = errors.queue[0]
+
+        # check if connection error otherwise it may not stop the program
+        if isinstance(error, requests.exceptions.ConnectionError):
+            print('IF YOU GET CONNECTION ERRORS, IT WILL CRASH (ON PURPOSE) A SULUTION IS TO USE LESS WORKERS/THREADS',
+                  flush=True)
+            raise Exception(error)
+        else:
+            raise error
 
     # Combine results from all workers
     results = pd.DataFrame(
