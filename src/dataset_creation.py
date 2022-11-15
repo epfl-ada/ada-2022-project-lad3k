@@ -8,6 +8,7 @@ from threading import Thread
 import pandas as pd
 import requests
 from tqdm import tqdm
+import csv
 
 import config
 
@@ -51,7 +52,7 @@ def find_in_moviedb(imdb_id: str, api_key: str = config.MOVIE_DB_API_KEY) -> int
         return [item for sublist in list_to_flatten for item in sublist]
 
     # check if the IMDb ID is valid
-    if not imdb_id.startswith('tt') and len(imdb_id) != 9 and not imdb_id[2:].isdigit():
+    if not imdb_id.startswith('tt') and not imdb_id[2:].isdigit():
         logging.warning('Invalid IMDb ID: %s', imdb_id)
         return -1
 
@@ -86,13 +87,13 @@ def get_movie_features(movie_id: int, api_key: str = config.MOVIE_DB_API_KEY) ->
     Returns:
         dict: The features of the movie with the given ID from the MovieDB database.
             The dict contains the following keys (all optional):
-            - id: The IMDb ID of the movie.
-            - overview: The overview of the movie.
-            - providers: The streaming providers of the movie. {<country>: [<providers>]}
-            - budget: The budget of the movie.
-            - revenue: The revenue of the movie.
-            - production_companies: The production companies of the movie.
-            - production_countries: The production countries of the movie.
+            - id (str): The IMDb ID of the movie.
+            - overview (str): The overview of the movie.
+            - providers (dict): The streaming providers of the movie. {<country>: [<providers>]}
+            - budget (int): The budget of the movie.
+            - revenue (int): The revenue of the movie.
+            - production_companies (list): The production companies of the movie.
+            - production_countries (list): The production countries of the movie.
     """
 
     # make the request
@@ -127,10 +128,15 @@ def get_movie_features(movie_id: int, api_key: str = config.MOVIE_DB_API_KEY) ->
                   for provider in providers['flatrate']] if 'flatrate' in providers else []
         for country, providers in providers_response['results'].items()}
 
+    # for overview, make sure it's a string correctly formatted with no newlines
+    overview = movie_response['overview'].replace(
+        '\n', ' ') if 'overview' in movie_response else ''
+    overview = overview.strip()
+
     # get the features
     features = {
         'imdb_id': movie_response['imdb_id'],
-        'overview': movie_response['overview'],
+        'overview': overview,
         'providers': providers,
         'budget': movie_response['budget'],
         'revenue': movie_response['revenue'],
@@ -141,7 +147,7 @@ def get_movie_features(movie_id: int, api_key: str = config.MOVIE_DB_API_KEY) ->
     return features
 
 
-def create_moviedb_dataset(filename: str = 'moviedb_data.csv'):
+def create_moviedb_dataset(filename: str = 'moviedb_data.tsv'):
     """This function creates the MovieDB dataset. It loads the IMDb data and finds the corresponding
     elements in the MovieDB database. Then, it gets the features of the movies and saves them in a
     CSV file.
@@ -159,7 +165,7 @@ def create_moviedb_dataset(filename: str = 'moviedb_data.csv'):
     imdb_ids = df['tconst'].unique().tolist()
 
     # sort the list
-    imdb_ids.sort()
+    imdb_ids.sort(key=lambda x: int(x[2:]))
 
     # If the csv already exists, get the last IMDb ID that was processed
     data_path = os.path.join(os.path.dirname(__file__), '..', 'data')
@@ -167,7 +173,7 @@ def create_moviedb_dataset(filename: str = 'moviedb_data.csv'):
     csv_already_exists = os.path.exists(csv_path)
 
     if csv_already_exists:
-        df = pd.read_csv(csv_path)
+        df = pd.read_csv(csv_path, sep='\t')
         last_imdb_id = df['imdb_id'].iloc[-1]
         last_imdb_id_index = imdb_ids.index(last_imdb_id)
         imdb_ids = imdb_ids[last_imdb_id_index + 1:]
@@ -186,20 +192,24 @@ def create_moviedb_dataset(filename: str = 'moviedb_data.csv'):
 
         movies_df = get_movies_features_for_list_imdb_ids(
             imdb_ids_subset, nb_workers=10)
-        movies_df.sort_values(by='imdb_id', inplace=True)
+        movies_df.sort_values(
+            by='imdb_id', key=lambda x: x.str[2:].astype(int), inplace=True)
 
         # if some values of imdb_id are not in the bounds (due to redirects), remove them
         movies_df = movies_df[
             (movies_df['imdb_id'] >= imdb_ids_subset[0]) & (movies_df['imdb_id'] <= imdb_ids_subset[-1])]
 
+        # AVOID MALFORMED CSV FILES
         if csv_already_exists:
-            movies_df.to_csv(csv_path, mode='a', header=False, index=False)
+            movies_df.to_csv(csv_path, sep='\t', mode='a',
+                             header=False, index=False, quoting=csv.QUOTE_ALL)
         else:
-            movies_df.to_csv(csv_path, index=False)
+            movies_df.to_csv(csv_path, sep='\t', index=False,
+                             quoting=csv.QUOTE_ALL)
             csv_already_exists = True
 
         logging.info(f'Done processing IMDb IDs {imdb_ids_subset[0]}-{imdb_ids_subset[-1]}, ' +
-                     f'representing {upper_bound / len(imdb_ids) * 100} % of the data...')
+                     f'representing {round(upper_bound / len(imdb_ids) * 100)} % of the data...')
 
 
 def get_movies_features_for_list_imdb_ids(imdb_ids: list, nb_workers: int = 10) -> pd.DataFrame:
@@ -344,4 +354,11 @@ if __name__ == '__main__':
     # set logging level
     logging.basicConfig(level=logging.INFO)
 
-    create_moviedb_dataset()
+    while True:
+        try:
+            create_moviedb_dataset()
+            break
+        except Exception as e:
+            print(e)
+            time.sleep(10)
+            print('Retrying...', flush=True)
