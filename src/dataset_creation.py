@@ -200,7 +200,7 @@ def create_moviedb_dataset(filename: str = 'moviedb_data.csv'):
             csv_already_exists = True
 
         logging.info(f'Done processing IMDb IDs {imdb_ids_subset[0]}-{imdb_ids_subset[-1]}, ' +
-                     f'representing {upper_bound / len(imdb_ids) * 100} % of the data...')
+                     f'representing {round(upper_bound / len(imdb_ids) * 100)} % of the data...')
 
 
 def get_movies_features_for_list_imdb_ids(imdb_ids: list, nb_workers: int = 10) -> pd.DataFrame:
