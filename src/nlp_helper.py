@@ -1,52 +1,30 @@
-# import numpy as np
-from gensim import models
-# from gensim import corpora
-# # to flatten list of sentences of tokens into list of tokens
-# from itertools import chain
-# from nltk.corpus import stopwords
-# import nltk
-# from nltk import pos_tag
-# from nltk.stem.wordnet import WordNetLemmatizer
-from nltk.corpus import wordnet
-from gensim import corpora
-# import pandas as pd
-# from nltk.tokenize import word_tokenize
 import pandas as pd
-# from gensim.models import Phrases
-
-
-# df = pd.read_csv("../data/moviedb_data csv.gz", compression="gzip")
+from gensim import models
+from gensim import corpora
+from nltk.corpus import wordnet
 
 
 def read_moviedb_data():
     """
     Read data from moviedb
-    :return: dataframe
+    return: dataframe
     """
-    df = pd.read_csv('../data/moviedb_data.csv.gz', compression='gzip')
+    df = pd.read_csv('../data/moviedb_data.tsv.gz',
+                     sep='\t', compression='gzip')
     return df
 
 
-# # keep only the overview and providers columns
-# df_overview_provider = df[["overview", "providers"]]
-
-# df_overview_provider.head()
-# # replace nan for provider by {}
-# df_overview_provider["providers"] = df_overview_provider["providers"].fillna(
-#     "{}")
-# df_overview_provider["overview"] = df_overview_provider["overview"].fillna("")
-# # copy the dataframe
-# df_plots = df_overview_provider.copy()
-
-# df_plots['tokens_sentences'] = df_plots['overview'].apply(
-#     lambda movie_plot: word_tokenize(movie_plot))
-
-# lemmatize
-
-# Inspired from https://stackoverflow.com/a/15590384
-
-
 def get_wordnet_pos(treebank_tag):
+    """Convert the treebank tag to wordnet tag
+
+    from https://stackoverflow.com/a/15590384
+
+    Args:
+        treebank_tag (_type_): treebank tag
+
+    Returns:
+        wordnet tag
+    """
 
     if treebank_tag.startswith('J'):
         return wordnet.ADJ
@@ -60,56 +38,36 @@ def get_wordnet_pos(treebank_tag):
         return ''
 
 
-# lemmatizer = WordNetLemmatizer()
+def build_dictionnary_and_corpus(tokens, no_below, no_above):
+    """_summary_
 
-# df_plots['POS_tokens'] = df_plots['tokens_sentences'].apply(
-#     lambda tokens_sentences: pos_tag(tokens_sentences))
-# print(df_plots['POS_tokens'].head(1))
+    Args:
+        tokens (str[][]): list of tokens, i.e list of list of words
+        no_below (int, optional): words must occure in at least no_below plots.
+        no_above (float, optional): word must not occure in more than no_above % of the plots.
 
-# nltk.download('omw-1.4')
-# df_plots['tokens_sentences_lemmatized'] = df_plots['POS_tokens'].apply(
-#     lambda tokenized_plot: [lemmatizer.lemmatize(word[0], get_wordnet_pos(word[1]))
-#                             if get_wordnet_pos(word[1]) != '' else word[0] for word in tokenized_plot])
-# df_plots['tokens_sentences_lemmatized'].head(1)
-
-
-# # Remove stop words
-
-# stopwords_verbs = ['say', 'get', 'go', 'know', 'may', 'need', 'like',
-#                    'make', 'see', 'want', 'come', 'take', 'use', 'would', 'can']
-# stopwords_other = ['one', 'mr', 'bbc', 'image', 'getty',
-#                    'de', 'en', 'caption', 'also', 'copyright', 'something']
-# my_stopwords = stopwords.words(
-#     'English') + stopwords_verbs + stopwords_other + [".", ","]
-# df_plots['tokens'] = df_plots['tokens_sentences_lemmatized'].map(lambda tokenized_plot:\
-#  [word.lower() for word in tokenized_plot if word.isalpha() and word.lower() not in my_stopwords and len(word) > 1])
-# df_plots['tokens'].head()
-
-# # LDA
-
-# tokens = df_plots['tokens'].tolist()
-# bigram_model = Phrases(tokens)
-# trigram_model = Phrases(bigram_model[tokens], min_count=1)
-# tokens = list(trigram_model[bigram_model[tokens]])
-
-
-def build_dictionnary_and_corpus(tokens, no_below=60, no_above=0.5):
+    Returns:
+        (gensim.corpora.dictionary.Dictionary, list): Dictionary and corpus (list of bag of words,
+         i.e number of occurence of each word in the plot)
+    """
+    # this will be used to identify the words in the plots (i.e every word has to belong to dictionary)
     dictionary = corpora.Dictionary(tokens)
-    dictionary.filter_extremes(no_below=10, no_above=0.5)
+    # we remove words that appear in less than no_below movies plots and in more than no_above% of the movies plots
+    dictionary.filter_extremes(no_below=no_below, no_above=no_above)
+    # for each plot (token), we compute how many times each word appears in it.
     corpus = [dictionary.doc2bow(token) for token in tokens]
     return dictionary, corpus
 
 
-# dictionary_LDA = corpora.Dictionary(tokens)
-# dictionary_LDA.filter_extremes(no_below=60)
-# # print each word and its id
-# for key, value in dictionary_LDA.items():
-#     print(key, ' : ', value)
-# corpus = [dictionary_LDA.doc2bow(tok) for tok in tokens]
-# # print(corpus)
-
-
 def create_lda_model(corpus, dictionary, num_topics=10, passes=10):
+    """
+    Create a LDA model from a corpus and a dictionary using the gensim library
+    Args:
+        corpus (list): list of bag of words, i.e number of occurence of each word in the plot
+        dictionary (gensim.corpora.dictionary.Dictionary): Dictionary
+        num_topics (int, optional): number of topics to extract
+        passes (int, optional): number of passes over the corpus
+    """
     lda_model = models.LdaModel(corpus=corpus,
                                 id2word=dictionary,
                                 num_topics=num_topics,
@@ -122,37 +80,52 @@ def create_lda_model(corpus, dictionary, num_topics=10, passes=10):
     return lda_model
 
 
-# np.random.seed(9999)
-# num_topics = 15
-# lda_model = models.LdaModel(corpus, num_topics=num_topics,
-#                            id2word=dictionary_LDA,
-#                            passes=4, alpha=[0.01]*num_topics,
-#                            eta=[0.01]*len(dictionary_LDA.keys()))
-
-
 def get_topics(lda_model, num_topics=15, num_words=13):
+    """Get the topics from a LDA model
+
+    Args:
+        lda_model (gensim.models.LdaModel): LdaModel used for topic extraction
+        num_topics (int, optional): number of topics we want to extract. Defaults to 15.
+        num_words (int, optional): number of words to represent a topic. Defaults to 13.
+
+    Returns:
+        list: list of topics, one topic is an array of num_words words
+    """
     topics = []
-    for _, topic in lda_model.show_topics(formatted=True, num_topics=num_topics, num_words=13):
+    for _, topic in lda_model.show_topics(formatted=True, num_topics=num_topics, num_words=num_words):
+        # we remove the percentage of each word in the topic, and only keep the word
         topics.append(' '.join([word.split('*')[1]
                       for word in topic.split(' + ')]).replace("\"", ''))
     return topics
 
 
-# topics = []
-
-
 def get_topic_distribution(lda_model, corpus):
+    """ Get the topic distribution for each plot
+    Args:
+        lda_model (gensim.models.LdaModel): LdaModel used for topic extraction
+        corpus (list): list of bag of words, i.e number of occurence of each word in the plot
+    Returns:
+        list: list of topic distribution for each plot. I.e for each plot, we have a list of tuples
+         (topic, probability). We order the list by decreasing probability.
+    """
     topic_distributions = []
-    for doc in corpus:
-        topic_distributions.append(lda_model.get_document_topics(doc))
+    for plot in corpus:
+        distribution = lda_model.get_document_topics(plot)
+        # we sort the list by decreasing probability
+        distribution.sort(key=lambda x: x[1], reverse=True)
+        topic_distributions.append(distribution)
     return topic_distributions
 
 
-# print the topic distribution for each plot
-# topic_distributions = get_topic_distribution(lda_model, corpus)
-
-
 def print_movie_plot_with_topic_words(topic_distributions, topics, df_plots, num_plots):
+    """Print the plots associated to the most probable topic
+    Args:
+        topic_distributions (list): list of topic distribution for each plot. I.e for each plot,
+         we have a list of tuples
+        topics (list): list of topics, one topic is an array of num_words words
+        df_plots (pandas.DataFrame): dataframe containing the plots
+        num_plots (int): number of plots to print
+    """
     # TODO add random sampling
     for i, distribution in enumerate(topic_distributions[:num_plots]):
         print('plot: {}'.format(df_plots.iloc[i]['overview']))
@@ -160,12 +133,3 @@ def print_movie_plot_with_topic_words(topic_distributions, topics, df_plots, num
         best_topic = max(distribution, key=lambda x: x[1])[0]
         print('associated best topic: {}'.format(topics[best_topic]))
         print()
-
-
-# # for the first 20 plots, print the topic distribution
-# for i, distribution in enumerate(topic_distributions[:15]):
-#     print("plot: {}".format(df_plots.iloc[i]['overview']))
-#     # get the value of the topic with the highest probability
-#     best_topic = max(distribution, key=lambda x: x[1])[0]
-#     print("associated best topic: {}".format(topics[best_topic]))
-#     print()
