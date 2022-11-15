@@ -8,6 +8,7 @@ from threading import Thread
 import pandas as pd
 import requests
 from tqdm import tqdm
+import csv
 
 import config
 
@@ -127,10 +128,15 @@ def get_movie_features(movie_id: int, api_key: str = config.MOVIE_DB_API_KEY) ->
                   for provider in providers['flatrate']] if 'flatrate' in providers else []
         for country, providers in providers_response['results'].items()}
 
+    # for overview, make sure it's a string correctly formatted with no newlines
+    overview = movie_response['overview'].replace(
+        '\n', ' ') if 'overview' in movie_response else ''
+    overview = overview.strip()
+
     # get the features
     features = {
         'imdb_id': movie_response['imdb_id'],
-        'overview': movie_response['overview'],
+        'overview': overview,
         'providers': providers,
         'budget': movie_response['budget'],
         'revenue': movie_response['revenue'],
@@ -193,11 +199,13 @@ def create_moviedb_dataset(filename: str = 'moviedb_data.tsv'):
         movies_df = movies_df[
             (movies_df['imdb_id'] >= imdb_ids_subset[0]) & (movies_df['imdb_id'] <= imdb_ids_subset[-1])]
 
+        # AVOID MALFORMED CSV FILES
         if csv_already_exists:
-            movies_df.to_csv(csv_path, mode='a', header=False,
-                             index=False, quoting=None, sep='\t')
+            movies_df.to_csv(csv_path, sep='\t', mode='a',
+                             header=False, index=False, quoting=csv.QUOTE_ALL)
         else:
-            movies_df.to_csv(csv_path, index=False, quoting=None, sep='\t')
+            movies_df.to_csv(csv_path, sep='\t', index=False,
+                             quoting=csv.QUOTE_ALL)
             csv_already_exists = True
 
         logging.info(f'Done processing IMDb IDs {imdb_ids_subset[0]}-{imdb_ids_subset[-1]}, ' +
