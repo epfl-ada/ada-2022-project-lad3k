@@ -9,7 +9,7 @@
 #       format_version: '1.3'
 #       jupytext_version: 1.11.2
 #   kernelspec:
-#     display_name: Python 3.9.13 ('ada_project')
+#     display_name: Python 3.9.15 ('ada_project')
 #     language: python
 #     name: python3
 # ---
@@ -24,8 +24,8 @@ import json
 
 # %%
 # load the CMU movies dataset
-df = pd.read_csv('data/MovieSummaries/movie.metadata.tsv',
-                 sep='\t', header=None)
+df = pd.read_csv('data/CMU/movie.metadata.tsv.gz',
+                 sep='\t', compression='gzip')
 
 # %%
 df.columns = [
