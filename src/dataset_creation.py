@@ -194,6 +194,8 @@ def create_moviedb_dataset(filename: str = 'moviedb_data.tsv'):
             imdb_ids_subset, nb_workers=10)
 
         movies_df = movies_df[movies_df['imdb_id'].str[2:] != '']
+        # remove also NoneType values
+        movies_df = movies_df[movies_df['imdb_id'].notna()]
 
         movies_df.sort_values(
             by='imdb_id', key=lambda x: x.str[2:].astype(int), inplace=True)
