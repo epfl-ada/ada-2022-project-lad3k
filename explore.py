@@ -49,10 +49,14 @@ df.release_date.apply(lambda x: x.year).plot(kind='hist', bins=100)
 
 # %% [markdown]
 # ### Interpretation
-# Looking at the statistics and the plot of the release dates of the CMU dataset,
-# we can see that it mostly contains old movies, only 1/4 of the movies have been released
-# after 2004, thus most movies are old, this means that if we use this dataset to study
-# which streaming service is best our dataset will have a bias towards older movies.
+# Looking at the statistics and the plot
+# of the release dates of the CMU dataset,
+# we can see that it mostly contains old movies,
+# only 1/4 of the movies have been released
+# after 2004, thus most movies are old, this means
+# that if we use this dataset to study
+# which streaming service is best our dataset will have
+# a bias towards older movies.
 
 # %%
 df.languages = df.languages.apply(json.loads)
@@ -98,8 +102,12 @@ df[df.languages != 'English Language'].shape[0]
 # ![images/originals.png](images/originals.png)
 
 # %% [markdown]
-# This argument is not a rigourous one but more of an emperical argument in favor of not using the CMU dataset.
-# For the reasons mentioned we will not use the CMU dataset to study which streaming service is best, but we will
+# This argument is not a
+# rigourous one but more of
+# an emperical argument in favor of
+# not using the CMU dataset.
+# For the reasons mentioned we will not use the CMU dataset to study
+# which streaming service is best, but we will
 # construct our own dataset using the imdb dataset and the moviedb api.
 
 # %% [markdown]
@@ -165,10 +173,123 @@ len(df_new)
 set(map(type, df_new['providers']))
 
 # %%
-df_new[df_new['providers'] != '{}'].count()
+df_new = df_new[df_new['providers'] != '{}']
+
+# %%
+df_new['providers'] = df_new['providers'].apply(lambda x: json.dumps(x))
+
+# %%
+df_new = df_new[df_new['providers'].apply(
+    lambda prov_dict: ('US' in prov_dict))]
+
+
+# %%
+def get_json(row):
+    return json.loads(row['providers'].replace("'", '"')[1:-1])
+
+
+# %%
+df_new['providers'] = df_new.apply(get_json, axis=1)
+
+# %%
+df_new['providers'] = df_new['providers'].apply(lambda x: x['US'])
+
+# %%
+df_new = df_new[df_new['providers'].apply(lambda x: len(x) > 0)]
+
+# %%
+len(df_new)
+
+# %%
+df_new['providers'] = df_new['providers'].apply(lambda x: tuple(x))
+
+# %%
+test = list(set(df_new['providers']))
+
+# %%
+# flatten the list of tuples
+test = [item for sublist in test for item in sublist]
+
+# %%
+set(test)
+
+# %%
+len(set(test))
 
 # %%
 df_new.groupby('overview').count().sort_values(
     'imdb_id', ascending=False).head(20)
+
+# %%
+df_new
+
+# %%
+df_joined = df_movies.merge(
+    left_on='tconst', right_on='imdb_id', right=df_new, how='inner')
+
+# %%
+df_joined.columns
+
+# %%
+df_joined.isAdult = pd.to_numeric(df_joined.isAdult)
+
+# %%
+set(df_joined.endYear)
+
+# %%
+# remove column from dataframe
+df_joined = df_joined.drop(['endYear', 'tconst', 'titleType'], axis=1)
+
+# %%
+df_joined = df_joined.drop('originalTitle', axis=1)
+
+# %%
+df_crew = pd.read_csv('data/IMDb/title.crew.tsv.gz',
+                      sep='\t', compression='gzip')
+df_names = pd.read_csv('data/IMDb/name.basics.tsv.gz',
+                       sep='\t', compression='gzip')
+
+# %%
+df_joined = df_crew.merge(
+    left_on='tconst', right_on='imdb_id', right=df_joined, how='inner')
+
+# %%
+df_joined = df_joined.drop('tconst', axis=1)
+
+# %% [markdown]
+# We now have the director and writers for each movie in our dataset,
+# they are identified by their imdb_id, we can lookup the
+# information about them in the df_names dataframe
+
+# %%
+df_joined
+
+# %% [markdown]
+# We will now add columns that correspond to ratings in our dataframe
+
+# %%
+df_ratings = pd.read_csv('data/IMDb/title.ratings.tsv.gz',
+                         sep='\t', compression='gzip')
+
+# %%
+df_joined = df_ratings.merge(
+    left_on='tconst', right_on='imdb_id', right=df_joined, how='inner')
+
+# %%
+df_joined = df_joined.drop('tconst', axis=1)
+
+# %%
+# reorder columns
+df_joined = df_joined[['imdb_id', 'primaryTitle', 'startYear', 'runtimeMinutes', 'genres',
+                       'isAdult', 'averageRating', 'numVotes', 'overview', 'directors', 'writers', 'providers']]
+
+# %%
+df_joined.sort_values(by='averageRating', ascending=False).head(20)
+
+# %%
+df_joined.set_index('imdb_id', inplace=True)
+
+# %%
+df_joined
 
 # %%
