@@ -32,7 +32,13 @@ import json
 
 
 # %% [markdown]
-# # CMU Dataset exploration
+# # 1. CMU Dataset 
+
+# %% [markdown]
+# ## 1.1 Exploration
+
+# %% [markdown]
+# We want to explore a movies dataset that includes movies in different streaming services. First, we explore the CMU Dataset and if we find it interesting we'll just have to add new columns representing the presence or not of each movie in each streaming service.
 
 # %%
 # load the CMU movies dataset
@@ -94,15 +100,13 @@ df[df.languages != 'English Language'].shape[0]
 # looking at movies that only have one spoken language in them. This shows a bias towards english movies
 
 # %% [markdown]
-# ### Further investigation of the CMU dataset to see if it is suitable to our problem
+# ## 2. CMU Dataset suitability with our project
 
 # %% [markdown]
-# On the CMU website we see that the movies have been collected from the Noverber 4,
-# 2012 dump of Freebase which in part explains why most of the movies are old,
-#  if we get data from google trends on the terms streaming services
-# and a specific streaming service for example Netflix,
+# On the CMU website we see that the movies have been collected from the November 4,
+# 2012 dump of Freebase. if we get data from google trends (see below),
 # we can see that the streaming services industry started booming after most of the movies
-# in the CMU dataset have been released
+# in the CMU dataset have been released. 
 
 # %% [markdown]
 # ![images/streaming.png](images/streaming.png)
@@ -114,15 +118,15 @@ df[df.languages != 'English Language'].shape[0]
 # ![images/originals.png](images/originals.png)
 
 # %% [markdown]
-# This argument is not a rigourous one but more of an emperical argument in favor of not using the CMU dataset.
-# For the reasons mentioned we will not use the CMU dataset to study which streaming service is best, but we will
-# construct our own dataset using the imdb dataset and the moviedb api.
+# We beleive that streaming services have generally more recent movies than old ones. To verify this we
+# will construct our own dataset using the imdb dataset and the moviedb api. This hypothesis will be proved 
+# later (see next section)
 
 # %% [markdown]
-# # Descripton of the newly constructed dataset
+# # 2. Descripton of our newly constructed dataset
 
 # %% [markdown]
-# ### IMDb dataset
+# ### 2.1 IMDb dataset
 
 # %% [markdown]
 # 1) Lets look at the movies present in  IMDBb
@@ -133,12 +137,13 @@ df_movies = pd.read_csv('data/IMDb/title.basics.tsv.gz',
 df_movies.head()
 
 # %%
-# Only keep movies
+# Only keep movies (no TV shows, no shorts, etc.)
 df_movies = df_movies[df_movies.titleType == 'movie']
 nb_movies = len(df_movies)
 print(nb_movies)
 
 # %%
+# Only keep movies with a known startYear
 nb_with_no_rdate = len(df_movies[df_movies['startYear'] == '\\N'])
 print(nb_with_no_rdate)
 
@@ -159,7 +164,11 @@ df_movies['startYear'].describe()
 # 2003 instead of 1985 (CMU dataset)
 
 # %% [markdown]
-# ### The scraped data from the moviedb api
+# ### 2. The scraped data from the moviedb api
+
+# %% [markdown]
+# Given the imdb_id we scrape the overview, providers, bugdet, revenue, production
+# company, production country provided by the moviedb api. 
 
 # %%
 df_new = pd.read_csv('data/moviedb_data.tsv.gz', sep='\t', compression='gzip')
@@ -172,13 +181,6 @@ df_new.head(5)
 
 # %%
 len(df_new)
-
-# %% [markdown]
-# Given the imdb_id we scrape the overview, providers, bugdet, revenue, production
-# company, production country provided by the moviedb api we have a total of 289093 movies, obtained using the imdb_id
-
-# %%
-set(map(type, df_new['providers']))
 
 # %%
 # Remove movies that dont have providers
@@ -237,8 +239,7 @@ len(set(test))
 
 # %% [markdown]
 # We have a list of 134 providers, we will keep all of them for now
-#  and see if will reduce the number of providers later on.
-# As an example we have the streaming service "
+# and see if will reduce the number of providers later on.
 
 # %%
 df_new.groupby('overview').count().sort_values(
