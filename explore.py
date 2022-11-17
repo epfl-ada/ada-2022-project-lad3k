@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # ---
 # jupyter:
 #   jupytext:
@@ -9,12 +10,23 @@
 #       format_version: '1.3'
 #       jupytext_version: 1.11.2
 #   kernelspec:
-#     display_name: Python 3.9.13 ('ada_project')
+#     display_name: Python 3.9.15 ('ada_project')
 #     language: python
 #     name: python3
 # ---
 
 # %%
+import matplotlib.pyplot as plt
+import string
+from nltk.stem.wordnet import WordNetLemmatizer
+from nltk.tokenize import word_tokenize
+from gensim.models import Phrases
+from nltk.corpus import stopwords
+from nltk import pos_tag
+from src.nlp_helper import get_wordnet_pos, build_dictionnary_and_corpus, create_lda_model, get_topics, \
+    get_topic_distribution
+import numpy as np
+import nltk
 import pandas as pd
 import json
 
@@ -449,3 +461,242 @@ df_movies_genre.sort_values(by='nb_movies', ascending=False).plot(kind='bar')
 
 # %% [markdown]
 # Movies can have multiple categories, for example one movie might have the category action and drama.
+
+# %% [markdown]
+# ## NLP exploration
+# We will now see if we can perform topics extraction over the movie plots.
+
+# %% [markdown]
+# ### Data Loading and basic analysis
+# %%
+df = pd.read_csv('data/moviedb_data.tsv.gz', sep='\t', compression='gzip')
+df_plots = df.copy()
+# keep only the overview and providers columns as we don't use others for NLP
+df_plots = df_plots[['overview', 'providers']]
+
+# %% [markdown]
+# #### Overview Analysis
+#
+# In this NLP exploration, we are mostly interested by the overview and providers fields.
+# Let's see if some movies don't contain overviews.
+
+# %%
+# print the percentage of movies with no overview
+nb_with_no_overview = len(df_plots[df_plots['overview'].isnull()])
+print(round(nb_with_no_overview / len(df_plots)
+      * 100, 1), '% of movies have a null overview')
+
+# replace the missing values with an empty string
+df_plots['overview'] = df_plots['overview'].fillna('')
+
+df_plots.head(7)['overview']
+
+# %% [markdown]
+# Here we see that some movies (5,7) contain a non empty overview, but which indicate that there is no overview for this
+# movie.
+# We can replace them by empty overviews. However this replacement may not be exhaustive if some useless plots are not
+# $\\$ "Know what this is about?" but something else.
+
+# %%
+n_no_overview_0 = round(
+    len(df_plots[df_plots['overview'].str.contains('Know what this is about?')]))
+n_no_overview_1 = round(
+    len(df_plots[df_plots['overview'].str.contains('No Overview')]))
+n_no_overview_2 = round(
+    len(df_plots[df_plots['overview'].str.contains('No overview found')]))
+total_no_overview = n_no_overview_0 + n_no_overview_1 + \
+    n_no_overview_2 + nb_with_no_overview
+print(round(total_no_overview / len(df_plots) * 100, 1),
+      '% of movies have a no overview')
+
+# %% [markdown]
+# 12% of movies without overview is tolerable given that our dataset is large, but firstly our search is not exhaustive,
+# and secondly we will $\\$ have to check that most of the movies on the streaming platforms have an overview to be
+# able to apply NLP.
+
+# %%
+# we start by replacing the strings 'No Overview', 'No overview found' and 'Know what this is about?' by an empty string
+df_plots['overview'] = df_plots['overview'].apply(lambda x: x.replace(
+    'No Overview', '').replace('No overview found', '').replace('Know what this is about?', ''))
+# we clean provider data
+df_plots['providers'] = df_plots['providers'].fillna('{}')
+
+# %% [markdown]
+# According to previous analysis, we decided to use providers of Switzerland and US, we will now see if the movies
+# provided in these $\\$ countries possess enough plots.
+
+# %%
+# US provider movies
+df_plots_us = df_plots[df_plots['providers'].str.contains('US')]
+# keep only movies where plots isn't empty
+df_plots_us_overview = df_plots_us[df_plots_us['overview'] != '']
+
+n_plot_us_overview = len(df_plots_us_overview)
+
+plt.title('Pie chart of movies containing overview in the US')
+# plot the number of movies with overview in the US
+plt.pie([n_plot_us_overview, len(df_plots_us) - n_plot_us_overview], labels=['Overview', 'No Overview'],
+        autopct='%1.1f%%')
+plt.show()
+
+# %% [markdown]
+# Thus we can see that we can work on an NLP for topics analysis for the movies provided in US as almost all
+# movies have plots.
+#
+# ### Plot preparation
+#
+# Now that we have seen we have enough movies plots in the US and CH regions, we can work on our topics analysis. $\\$
+# To make a simple first exploration of topics analysis, we will simplify by merging movies from CH and US together $\\$
+# as language is roughly the same. We could however try to split between the two in further analysis.
+#
+# We will transform the plots in order to make them intepretable by an LDA model. This includes
+# - Tokenization
+# - Lemmatization
+# - Removing of stopwords
+#
+# This is usefull as we want to find ressemblance between words, so we should replace words with same meaning by one
+# common word.
+# We also want to remove most commun words. This allows to remove low-information words, allowing our
+# model to focus on important $\\$ words.
+#
+# For the below part, we use a smaller dataset for performance reasons as we are trying nlp techniques,
+#  but in the future we will use $\\$ the full dataset.
+
+# %% [markdown]
+# #### Tokenization
+
+# %%
+# take a sample of 30% of the movies
+df_plots_us = df_plots_us_overview.sample(frac=0.1, random_state=42)
+print(f'Number of movies in the sample: {len(df_plots_us)}')
+
+# Tokenize the plots
+df_plots_us['tokenized_plots'] = df_plots_us['overview'].apply(
+    lambda movie_plot: word_tokenize(movie_plot))
+df_plots_us.head()['tokenized_plots']
+
+# %% [markdown]
+# #### Lemmatization
+# we start by assocating a POS tag to each word (i.e if a word is a Noun, Verb, Adjective, etc.)
+
+# %%
+df_plots_us['plots_with_POS_tag'] = df_plots_us['tokenized_plots'].apply(
+    lambda tokenized_plot: pos_tag(tokenized_plot))
+df_plots_us['plots_with_POS_tag'].head()
+
+# %% [markdown]
+# If a word has no tag we don't change it. However if there is a tag, we lemmatize the word according to its tag.
+
+# %%
+nltk.download('omw-1.4')
+lemmatizer = WordNetLemmatizer()
+# Lemmatize each word given its POS tag
+df_plots_us['lemmatized_plots'] = df_plots_us['plots_with_POS_tag'].apply(
+    lambda tokenized_plot: [word[0] if get_wordnet_pos(word[1]) == ''
+                            else lemmatizer.lemmatize(word[0], get_wordnet_pos(word[1])) for word in tokenized_plot])
+df_plots_us['lemmatized_plots'].head()
+
+# %% [markdown]
+# #### Stop words removal
+
+# %%
+# list of stop words could be improved
+stop_words = ['\'s']
+all_stopwords = stopwords.words(
+    'English') + list(string.punctuation) + stop_words
+
+# %%
+
+# remove the white space inside each words
+df_plots_us['plots_without_stopwords'] = df_plots_us['lemmatized_plots'].apply(
+    lambda tokenized_plot: [word.strip() for word in tokenized_plot])
+# lowercase all words in each plot
+df_plots_us['plots_without_stopwords'] = df_plots_us['plots_without_stopwords'].apply(
+    lambda plot: [word.lower() for word in plot])
+# remove stopwords from the plots
+df_plots_us['plots_without_stopwords'] = df_plots_us['plots_without_stopwords'].apply(
+    lambda plot: [word for word in plot if word not in all_stopwords])
+# remove word if contains other letter than a-z or is a single character
+df_plots_us['plots_without_stopwords'] = df_plots_us['plots_without_stopwords'].apply(
+    lambda plot: [word for word in plot if word.isalpha() and len(word) > 1])
+df_plots_us['plots_without_stopwords'].head()[0:2]
+
+# %%
+before_stop_words_total_number_of_words =\
+    len([word for sentence in df_plots_us['lemmatized_plots']
+        for word in sentence])
+after_stop_words_total_number_of_words =\
+    len([word for sentence in df_plots_us['plots_without_stopwords']
+        for word in sentence])
+print('We kept {}% of the words in the corpus'.format(
+    round(after_stop_words_total_number_of_words/before_stop_words_total_number_of_words, 2) * 100))
+
+# %% [markdown]
+# ### Latent Direchlet Allocation
+# We need to create a list of tokens, i.e words that will be used inside our dictionary (depending on their frequency).
+# $\\$
+# We can start by creating bi-gram for some words (represent to one words by one unique composed word)
+# It can be also interesting to see $\\$ if creating tri-gram allows to extract more information from plots.
+
+# %%
+tokens = df_plots_us['plots_without_stopwords'].tolist()
+bigram_model = Phrases(tokens)
+tokens = list(bigram_model[tokens])
+print(tokens[0:2])
+
+# %% [markdown]
+# #### Hyperparameters
+
+# %%
+no_below = 60  # minimum number of documents a word must be present in to be kept
+no_above = 0.5  # maximum proportion of documents a word can be present in to be kept
+n_topics = 10  # number of topics
+n_passes = 10  # number of passes through the corpus during training
+
+# %% [markdown]
+# ### Dictionnary & Corpus
+# The dictionnary will be the list of unique words, and the corpus a list of movie plots bag of words.
+
+# %%
+# we create a dictionary that maps each word to a unique integer
+# we also create a corpus. Each movie plot is encoded as a bag of words in the corpus.
+# A bag of word means that we count the number of times each word appears in the mvoie plot
+dictionary, corpus = build_dictionnary_and_corpus(
+    tokens, no_below=no_below, no_above=no_above)
+print('Dictionary size: {}'.format(len(dictionary)))
+print('Dictionary first 10 elements: {}'.format(
+    list(dictionary.items())[0:10]))
+print('Corpus size: {}'.format(len(corpus)))
+print('Corpus first 2 elements: {}'.format(corpus[0:2]))
+
+# %% [markdown]
+# #### LDA Model
+
+# %%
+np.random.seed(9999)
+lda_model = create_lda_model(
+    corpus, dictionary, num_topics=n_topics, passes=n_passes)
+
+# %%
+# get the topics
+topics = get_topics(lda_model, num_topics=n_topics, num_words=10)
+# print topics with new line
+for i, topic in enumerate(topics):
+    print('Topic {}: {}'.format(i, topic))
+
+# %% [markdown]
+# From these topics, we could interpret the 0th as more drama movies, whereas the 2th could be more adventurous movies.
+# However some others topics aren't really good, we cannot find a true ressemblance between the words inside.
+# We will work in the future of this project on how to improve our model to have miningfull topics.
+
+# %%
+# for each movie plot, get its topic distribution (i.e the probability of each topic) in descending order
+topic_distributions = get_topic_distribution(lda_model, corpus)
+print('Movie plot: {}'.format(df_plots['overview'].iloc[0]))
+print('Topic distribution for the first movie plot: {}'.format(
+    topic_distributions[0]))
+
+# %% [markdown]
+# Here we see that the movie plot is mainly disrtributed on topics 7,1,0 which are related to love, traveling,
+# and drama.
+# This could actually make sens given the movie plot.
