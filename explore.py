@@ -489,7 +489,7 @@ print(round(nb_with_no_overview / len(df_plots)
 # replace the missing values with an empty string
 df_plots['overview'] = df_plots['overview'].fillna('')
 
-df_plots.head(7)['overview']
+df_plots.head(8)['overview']
 
 # %% [markdown]
 # Here we see that some movies (5,7) contain a non empty overview, but which indicate that there is no overview for this
