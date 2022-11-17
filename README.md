@@ -44,9 +44,9 @@ In order to have a machine learning model to predict which streaming platform a 
 Question (1) which aims at defining whether some movie features vary across streaming platforms will provide an answer to this question.  
 
 One of the solutions to predict on which streaming service a movie is found would be to compare this movie with the movies present on each streaming platform (**KNN**). So we need to define a distance function between two movies (more on this in methods for **(3)**).  
-We will also consider a linear regression model. One important things to define for this model would be the loss function and dimension used (more on this in methods for **(4)**).
-We will try each of these possibilities to see which one produces the best results. In both cases, we can divide our dataset inside a training and a testing part (using cross validation).  
-Once the machine learning model is trained, we will then analyze its results on a validation set (the risk being to have overfit our model on our training/testing set, and to have a not very efficient model in reality)
+We will also consider a **regression model**. One important things to define for this model would be the loss function and dimension used (more on this in methods for **(4)**).
+In both cases, we can divide our dataset inside a training and a testing part (using cross validation). We will also leave some movies to create a validation set. We use as validation set as there is a risk of overfitting our model on our training/testing set, and to have a not very efficient model in reality. Thus validation set allows to test our model on data it has never seen before.  
+Finally we will see which one of these two models leads the best results on our validation set.
 
 
 ### Datasets
@@ -63,18 +63,29 @@ To answer question 1, we will analyze for each category of our dataset (that we 
 
 For the extraction of topics we will use LDA. This will involve preparing the movie descriptions in a way that can be interpreted by this model. We will also see if word embedding can be efficient to compare movies based on their description.
 
-### **(3)** Distance Function
+### **(3)** KNN
 
-Let's now see how we can build a distance function to compare two movies.  
+In order to define a KNN, we need to define a distance function comparing two movies.
 In the choice of this function, we will take into account that this function must minimize the distance between movies belonging to the same streaming service, and ideally maximize the distance between the streaming services. The distance function can also use the distribution of a film according to the chosen topics or word embedding of the movie's overview, obtained from question 2.
 
 ### **(4)** Regression Model
 
-The dimensions chosen for this regression model would be the parameters found using question 1.  
-We can penalize a movie prediction as soon as the predicted value isn't the correct streaming service. But we can also make something different where the loss is lower if the movie were predicted on a streaming platform that we consider "close" to the expected one.
+The dimensions chosen for this regression model would be the parameters found using question 1 and also topics distribution from question 2.  
+Next we need to define a loss function for the training.
+We can penalize a movie prediction as soon as the predicted value isn't the correct streaming service. But we can also make something different where the loss is lower if the movie were predicted on a streaming platform that we consider "close" to the expected one. These are choices that we can try, and see which one leads to the better results on the test set.
+
 
 
 ## Proposed timeline
+
+TODO
+
+- Features Selection: 18/11 -> 30/11
+- NLP over overview: 18/11 -> 30/11
+- KNN: 01/12 -> 24/12
+- Regression Model: 01/12 -> 24/12
+
+
 
 ## Organization within the team
 
