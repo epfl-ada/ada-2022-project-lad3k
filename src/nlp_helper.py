@@ -1,23 +1,12 @@
-import pandas as pd
 from gensim import models
 from gensim import corpora
 from nltk.corpus import wordnet
 
 
-def read_moviedb_data():
-    """
-    Read data from moviedb
-    return: dataframe
-    """
-    df = pd.read_csv('../data/moviedb_data.tsv.gz',
-                     sep='\t', compression='gzip')
-    return df
-
-
 def get_wordnet_pos(treebank_tag):
     """Convert the treebank tag to wordnet tag
 
-    from https://stackoverflow.com/a/15590384
+    I've used code from this post: https://stackoverflow.com/a/15590384
 
     Args:
         treebank_tag (_type_): treebank tag
