@@ -9,7 +9,7 @@
 #       format_version: '1.3'
 #       jupytext_version: 1.11.2
 #   kernelspec:
-#     display_name: Python 3.9.15 ('ada_project')
+#     display_name: Python 3.9.13 ('ada_project')
 #     language: python
 #     name: python3
 # ---
@@ -20,7 +20,7 @@ import json
 
 
 # %% [markdown]
-# # 1. CMU Dataset 
+# # 1. CMU Dataset
 
 # %% [markdown]
 # ## 1.1 Exploration
@@ -29,7 +29,9 @@ import json
 # ### 1.1.1 Timeline bias
 
 # %% [markdown]
-# We want to explore a movies dataset that includes movies in different streaming services. First, we explore the CMU Dataset and if we find it interesting we'll just have to add new columns representing the presence or not of each movie in each streaming service.
+# We want to explore a movies dataset that includes movies in different streaming services.
+# First, we explore the CMU Dataset and if we find it interesting we'll just have
+# to add new columns representing the presence or not of each movie in each streaming service.
 
 # %%
 # load the CMU movies dataset
@@ -55,7 +57,8 @@ df.release_date = pd.to_datetime(df.release_date, errors='coerce')
 df.release_date.describe(datetime_is_numeric=True)
 
 # %%
-df.release_date.apply(lambda x: x.year).plot(kind='hist', bins=100)
+df.release_date.apply(lambda x: x.year).plot(kind='hist', bins=100, xlim=(
+    1880, 2016), title='CMU number of movies per year')
 
 # %% [markdown]
 # ### Interpretation
@@ -101,7 +104,7 @@ df[df.languages != 'English Language'].shape[0]
 # On the CMU website we see that the movies have been collected from the November 4,
 # 2012 dump of Freebase. if we get data from google trends (see below),
 # we can see that the streaming services industry started booming after most of the movies
-# in the CMU dataset have been released. 
+# in the CMU dataset have been released.
 
 # %% [markdown]
 # ![images/streaming.png](images/streaming.png)
@@ -114,7 +117,7 @@ df[df.languages != 'English Language'].shape[0]
 
 # %% [markdown]
 # We beleive that streaming services have generally more recent movies than old ones. To verify this we
-# will construct our own dataset using the imdb dataset and the moviedb api. This hypothesis will be proved 
+# will construct our own dataset using the imdb dataset and the moviedb api. This hypothesis will be proved
 # later (see next section)
 
 # %% [markdown]
@@ -149,24 +152,27 @@ nb_with_no_rdate / nb_movies * 100
 # %%
 # plot the number of movies per year in a histogram
 df_movies['startYear'] = pd.to_numeric(df_movies['startYear'], errors='coerce')
-df_movies['startYear'].plot(kind='hist', bins=100)
+df_movies['startYear'].plot(kind='hist', bins=100,  xlim=(
+    1900, 2028), title='IMDb number of movies per year')
 
 # %%
 df_movies['startYear'].describe()
 
 # %% [markdown]
 # ### Interpretation
-# The median is at the year 2003 instead of 1985 (CMU dataset). Our new dataset has more recent data
+# The median is at the year 2003 instead of 1985 (CMU dataset). Our new dataset has more recent data,
+# this is not the final dataset we will use, we will use the moviedb api
+# to get information on the availability of movies on streaming services.
 
 # %% [markdown]
-# ## 2.2  The scraped data from the moviedb api
+# ## 2.2  The scraped data from the [moviedb API](https://developers.themoviedb.org/3)
 
 # %% [markdown]
 # ### 2.2.1 Exploration
 
 # %% [markdown]
 # Given the imdb_id we scrape the overview, providers, bugdet, revenue, production
-# company, production country provided by the moviedb api. We will then only keep 
+# company, production country provided by the moviedb api. We will then only keep
 # relevant information to our project
 
 # %%
@@ -179,35 +185,23 @@ len(df_new)
 # %%
 # Remove movies that dont have providers
 df_new = df_new[df_new['providers'] != '{}']
-
-# %%
 # Parse the movies into python dicts
 df_new['providers'] = df_new['providers'].apply(lambda x: json.dumps(x))
-
-# %%
 # Remove movies that dont have US streaming providers
 df_new = df_new[df_new['providers'].apply(
     lambda prov_dict: ('US' in prov_dict))]
-
-
-# %%
 # Parses the providers into dicts
+
+
 def get_json(row):
     return json.loads(row['providers'].replace("'", '"')[1:-1])
 
 
-# %%
 df_new['providers'] = df_new.apply(get_json, axis=1)
-
-# %%
-# Get the us providers list
+# Get the US providers list
 df_new['providers'] = df_new['providers'].apply(lambda x: x['US'])
-
-# %%
 # Keep only movies that have a non empty list of providers
 df_new = df_new[df_new['providers'].apply(lambda x: len(x) > 0)]
-
-# %%
 len(df_new)
 
 # %% [markdown]
@@ -217,62 +211,30 @@ len(df_new)
 
 # %%
 df_new['providers'] = df_new['providers'].apply(lambda x: tuple(x))
-
-# %%
-test = list(set(df_new['providers']))
-
-# %%
+providers_list = list(set(df_new['providers']))
 # flatten the list of tuples
-test = [item for sublist in test for item in sublist]
-
-# %%
-set(test)
-
-# %%
-len(set(test))
+providers_list = set([item for sublist in providers_list for item in sublist])
+print(f'Number of different providers: {list(providers_list)}')
+len(providers_list)
 
 # %% [markdown]
 # We have a list of 134 providers, we will keep all of them for now
 # and see if will reduce the number of providers later on.
-
-# %%
-df_new.groupby('overview').count().sort_values(
-    'imdb_id', ascending=False).head(20)
-
-# %%
-df_new
+#
 
 # %%
 df_joined = df_movies.merge(
     left_on='tconst', right_on='imdb_id', right=df_new, how='inner')
-
-# %%
-df_joined.columns
-
-# %%
 df_joined.isAdult = pd.to_numeric(df_joined.isAdult)
-
-# %%
-set(df_joined.endYear)
-
-# %%
 # remove column from dataframe
 df_joined = df_joined.drop(['endYear', 'tconst', 'titleType'], axis=1)
-
-# %%
 df_joined = df_joined.drop('originalTitle', axis=1)
-
-# %%
 df_crew = pd.read_csv('data/IMDb/title.crew.tsv.gz',
                       sep='\t', compression='gzip')
 df_names = pd.read_csv('data/IMDb/name.basics.tsv.gz',
                        sep='\t', compression='gzip')
-
-# %%
 df_joined = df_crew.merge(
     left_on='tconst', right_on='imdb_id', right=df_joined, how='inner')
-
-# %%
 df_joined = df_joined.drop('tconst', axis=1)
 
 # %% [markdown]
@@ -289,39 +251,36 @@ df_joined
 # %%
 df_ratings = pd.read_csv('data/IMDb/title.ratings.tsv.gz',
                          sep='\t', compression='gzip')
-
-# %%
 df_joined = df_ratings.merge(
     left_on='tconst', right_on='imdb_id', right=df_joined, how='inner')
-
-# %%
 df_joined = df_joined.drop('tconst', axis=1)
-
-# %%
-df_joined.columns
-
-# %%
+print('Columns of the joined dataframe:')
+print(df_joined.columns)
 df_joined.set_index('imdb_id', inplace=True)
 
 # %%
 df_joined.head(5)
 
-# %%
-df_joined.columns
-
 # %% [markdown]
-# Lets explore what we have in the newly constructed dataset,
+# Lets explore what we have in the newly constructed dataframe,
 #  and check if it is suitable for our problem
 
 # %%
 df_joined = df_joined.rename(columns={'startYear': 'release_year'})
-
-# %%
 # plot the release year of the movies
-df_joined['release_year'].plot(kind='hist', bins=100)
+df_joined['release_year'].plot(kind='hist', bins=100, xlim=(
+    1910, 2023), title='Number of movies per release year')
 
 # %%
 df_joined['release_year'].describe()
+
+# %% [markdown]
+# We can now confirm our hypothesis from above that most movies on streaming sevice are recent movies,
+# 50% of movies have been released after 2011, if we had used the CMU dataset we would have missed a
+#  lot of movies that are available on streaming services. Thus making our study limited to older movies.
+
+# %% [markdown]
+# ### Cleaning and exploring the newly created dataset
 
 # %%
 # check for null values in columns
@@ -350,24 +309,26 @@ for col in df_joined.columns.to_list():
 # We have less than 10% of the movies that have missing values,
 # we will see how we treat missing values, some possible solutions
 # are to drop the rows with missing values, or to impute the missing values.
-# The overview column always have a value but this does not mean that it is clean.
+# Some columns are not null but this does not mean
+# that the value in them is correct as we will see in the following part.
 
 # %%
 df_joined.groupby('overview').count().sort_values(
     ascending=False, by='averageRating').head(10)
 
 # %% [markdown]
-# Some overview values indicate that the value is missing like "No Overview" or
+# Some overview values indicate that the value is missing with values such as "No Overview" or
 # "No overview found." and some overviews are quite general like "Bollywood 1972"
 # or "Mexican feature film" and some are comletely wrong like
 # "No one has entered a biography for him." or "What the movie has in store for you,
 #  wait and watch this space for more updates.". We will have to find a way to keep only
 # rows that have a correct overview, a good start would be to keep only the ones that are unique
-# and have a length greater than 10.
+# and have a length greater than a certain threshhold to ensure that they are long enough to describe a movie.
 
 # %%
-# look at the distribution of the average rating
-df_joined['averageRating'].plot(kind='hist', bins=100)
+# the distribution of the average rating
+df_joined['averageRating'].plot(
+    kind='hist', bins=100, title='Distribution of the average rating of the movies')
 
 
 # %%
@@ -377,21 +338,18 @@ df_joined['averageRating'].describe()
 # plot the runtime of the movies
 df_joined['runtimeMinutes'] = pd.to_numeric(
     df_joined['runtimeMinutes'], errors='coerce')
-df_joined['runtimeMinutes'].plot(kind='hist', bins=100, xlim=(50, 200))
+df_joined['runtimeMinutes'].plot(kind='hist', bins=100, xlim=(
+    50, 200), title='Distribution of the runtime of the movies')
 
 # %%
 df_joined['runtimeMinutes'].describe()
 
-# %%
-df_joined.query('runtimeMinutes == 720')
-
-# %%
-df_joined['providers']
-
 # %% [markdown]
 # Lets focus on the most popular streaming services in the US,
-# to check the
+# and check the
 # number of movies available in each streaming service namely:
+# (Those streaming services were chosen after reading the following article
+# [here](https://www.tomsguide.com/us/best-streaming-video-services,review-2625.html))
 # - Netflix
 # - Hulu
 # - Amazon Prime Video
@@ -434,25 +392,22 @@ nb_per_streaming_serv.sort_values(ascending=False).plot(kind='bar')
 
 # %%
 df_joined['genres'] = df_joined['genres'].apply(lambda x: x.split(','))
-
-# %%
 genres = set(df_joined['genres'].sum())
-
-# %%
 genres = list(genres)
+# to account for the missing value string '\\N'
+print(f'Number of different genres: {len(genres) - 1}')
+genres
 
 # %%
 movies_genre = {}
 for genre in genres:
     movies_genre[genre] = df_joined['genres'].apply(lambda x: genre in x).sum()
-
-# %%
 df_movies_genre = pd.DataFrame.from_dict(
     movies_genre, orient='index', columns=['nb_movies'])
-
-# %%
 # categories of movies on the steaming services defiened above
-df_movies_genre.sort_values(by='nb_movies', ascending=False).plot(kind='bar')
+df_movies_genre.sort_values(by='nb_movies', ascending=False).plot(
+    kind='bar', title='Number of movies per genre in the corrsponding streaming services')
 
 # %% [markdown]
 # Movies can have multiple categories, for example one movie might have the category action and drama.
+# This concludes our exploration of the dataset, we are now ready to start working on milestone 3.
