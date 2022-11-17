@@ -9,25 +9,24 @@
 #       format_version: '1.3'
 #       jupytext_version: 1.11.2
 #   kernelspec:
-#     display_name: Python 3.9.13 ('ada_project')
+#     display_name: Python 3.9.15 ('ada_project')
 #     language: python
 #     name: python3
 # ---
 
 # %%
-import matplotlib.pyplot as plt
+import nltk
+import json
 import string
-from nltk.stem.wordnet import WordNetLemmatizer
-from nltk.tokenize import word_tokenize
+import numpy as np
+import pandas as pd
+from nltk import pos_tag
+import matplotlib.pyplot as plt
 from gensim.models import Phrases
 from nltk.corpus import stopwords
-from nltk import pos_tag
-from src.nlp_helper import get_wordnet_pos, build_dictionnary_and_corpus, create_lda_model, get_topics, \
-    get_topic_distribution
-import numpy as np
-import nltk
-import pandas as pd
-import json
+import src.nlp_helper as nlp_helper
+from nltk.tokenize import word_tokenize
+from nltk.stem.wordnet import WordNetLemmatizer
 
 nltk.download('averaged_perceptron_tagger')
 nltk.download('wordnet')
@@ -509,9 +508,7 @@ plt.show()
 #
 # ### Plot preparation
 #
-# Now that we have seen we have enough movies plots in the US and CH regions, we can work on our topics analysis. $\\$
-# To make a simple first exploration of topics analysis, we will simplify by merging movies from CH and US together $\\$
-# as language is roughly the same. We could however try to split between the two in further analysis.
+# Now that we have seen we have enough movies plots in the US region, we can work on our topics analysis. $\\$
 #
 # We will transform the plots in order to make them intepretable by an LDA model. This includes
 # - Tokenization
@@ -521,7 +518,7 @@ plt.show()
 # This is usefull as we want to find ressemblance between words, so we should replace words with same meaning by one
 # common word.
 # We also want to remove most commun words. This allows to remove low-information words, allowing our
-# model to focus on important $\\$ words.
+# model to focus on important words.
 #
 # For the below part, we use a smaller dataset for performance reasons as we are trying nlp techniques,
 #  but in the future we will use $\\$ the full dataset.
@@ -556,8 +553,9 @@ nltk.download('omw-1.4')
 lemmatizer = WordNetLemmatizer()
 # Lemmatize each word given its POS tag
 df_plots_us['lemmatized_plots'] = df_plots_us['plots_with_POS_tag'].apply(
-    lambda tokenized_plot: [word[0] if get_wordnet_pos(word[1]) == ''
-                            else lemmatizer.lemmatize(word[0], get_wordnet_pos(word[1])) for word in tokenized_plot])
+    lambda tokenized_plot: [word[0] if nlp_helper.get_wordnet_pos(word[1]) == ''
+                            else lemmatizer.lemmatize(word[0], nlp_helper.get_wordnet_pos(word[1]))
+                            for word in tokenized_plot])
 df_plots_us['lemmatized_plots'].head()
 
 # %% [markdown]
@@ -625,7 +623,7 @@ n_passes = 10  # number of passes through the corpus during training
 # we create a dictionary that maps each word to a unique integer
 # we also create a corpus. Each movie plot is encoded as a bag of words in the corpus.
 # A bag of word means that we count the number of times each word appears in the mvoie plot
-dictionary, corpus = build_dictionnary_and_corpus(
+dictionary, corpus = nlp_helper.build_dictionnary_and_corpus(
     tokens, no_below=no_below, no_above=no_above)
 print('Dictionary size: {}'.format(len(dictionary)))
 print('Dictionary first 10 elements: {}'.format(
@@ -638,12 +636,12 @@ print('Corpus first 2 elements: {}'.format(corpus[0:2]))
 
 # %%
 np.random.seed(9999)
-lda_model = create_lda_model(
+lda_model = nlp_helper.create_lda_model(
     corpus, dictionary, num_topics=n_topics, passes=n_passes)
 
 # %%
 # get the topics
-topics = get_topics(lda_model, num_topics=n_topics, num_words=10)
+topics = nlp_helper.get_topics(lda_model, num_topics=n_topics, num_words=10)
 # print topics with new line
 for i, topic in enumerate(topics):
     print('Topic {}: {}'.format(i, topic))
@@ -655,7 +653,7 @@ for i, topic in enumerate(topics):
 
 # %%
 # for each movie plot, get its topic distribution (i.e the probability of each topic) in descending order
-topic_distributions = get_topic_distribution(lda_model, corpus)
+topic_distributions = nlp_helper.get_topic_distribution(lda_model, corpus)
 print('Movie plot: {}'.format(df_plots['overview'].iloc[0]))
 print('Topic distribution for the first movie plot: {}'.format(
     topic_distributions[0]))
