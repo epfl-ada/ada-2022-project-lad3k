@@ -9,7 +9,7 @@
 #       format_version: '1.3'
 #       jupytext_version: 1.11.2
 #   kernelspec:
-#     display_name: Python 3.9.15 ('ada_project')
+#     display_name: Python 3.9.13 ('ada_project')
 #     language: python
 #     name: python3
 # ---
@@ -387,16 +387,15 @@ df_joined['on_peacock'] = df_joined['providers'].apply(
 
 
 # %%
-# keep only rows that have exactly one true in one of the streaming service columns and all others are false
-df_joined = df_joined[(df_joined[['on_netflix', 'on_prime', 'on_apple',
-                       'on_hulu', 'on_disney', 'on_hbo', 'on_peacock']].sum(axis=1) == 1)]
+# Count the number of movies per streaming provider
 nb_per_streaming_serv = df_joined[[
     'on_netflix', 'on_prime', 'on_apple', 'on_hulu', 'on_disney', 'on_hbo', 'on_peacock']].sum()
 print(f'Total number of movies: {nb_per_streaming_serv.sum()}')
 nb_per_streaming_serv
 
 # %%
-nb_per_streaming_serv.sort_values(ascending=False).plot(kind='bar')
+nb_per_streaming_serv.sort_values(ascending=False).plot(
+    kind='bar', title='Number of movies per streaming service')
 
 # %% [markdown]
 # The data is not uniformlly distributed, some streaming services have a
