@@ -83,6 +83,7 @@ df.release_date.apply(lambda x: x.year).plot(kind='hist', bins=100, xlim=(
 # this means that if we use this dataset to study
 # which streaming service is best our
 # dataset will have a bias towards older movies.
+# (As we will confirm in the next section)
 
 # %% [markdown]
 # ### 1.1.2 Language bias
@@ -173,7 +174,7 @@ df_movies['startYear'].describe()
 
 # %% [markdown]
 # ### Interpretation
-# The median is at the year 2003 instead of 1985 (CMU dataset). Our new dataset has more recent data,
+# The median is at the year 2003 (1985 for the CMU dataset). Our new dataset has more recent movies,
 # this is not the final dataset we will use, we will use the moviedb api
 # to get information on the availability of movies on streaming services.
 
@@ -186,7 +187,7 @@ df_movies['startYear'].describe()
 # %% [markdown]
 # Given the imdb_id we scrape the overview, providers, bugdet, revenue, production
 # company, production country provided by the moviedb api. We will then only keep
-# relevant information to our project
+# relevant information for our project
 
 # %%
 df_new = pd.read_csv('data/moviedb_data.tsv.gz', sep='\t', compression='gzip')
@@ -220,7 +221,7 @@ len(df_new)
 # %% [markdown]
 # We have a list of about 40 000 movies to use for our analysis,
 # if we replace the "US" country code with "CH" we only get about
-# 20 000 movies thus we decided to focus on the US market.
+# 20 000 movies.
 
 # %%
 df_new['providers'] = df_new['providers'].apply(lambda x: tuple(x))
@@ -232,7 +233,7 @@ len(providers_list)
 
 # %% [markdown]
 # We have a list of 134 providers, we will keep all of them for now
-# and see if will reduce the number of providers later on.
+# and see if we will reduce the number of providers later on.
 #
 
 # %%
@@ -249,6 +250,9 @@ df_names = pd.read_csv('data/IMDb/name.basics.tsv.gz',
 df_joined = df_crew.merge(
     left_on='tconst', right_on='imdb_id', right=df_joined, how='inner')
 df_joined = df_joined.drop('tconst', axis=1)
+
+# %%
+df_names
 
 # %% [markdown]
 # We now have the director and writers for each movie in our dataset,
@@ -288,7 +292,7 @@ df_joined['release_year'].plot(kind='hist', bins=100, xlim=(
 df_joined['release_year'].describe()
 
 # %% [markdown]
-# We can now confirm our hypothesis from above that most movies on streaming sevice are recent movies,
+# We can now confirm our hypothesis from above that most movies on streaming sevices are recent movies,
 # 50% of movies have been released after 2011, if we had used the CMU dataset we would have missed a
 #  lot of movies that are available on streaming services. Thus making our study limited to older movies.
 
@@ -319,8 +323,8 @@ for col in df_joined.columns.to_list():
     print(col, len(df_joined[df_joined[col].apply(lambda x: x == '\\N')]))
 
 # %% [markdown]
-# We have less than 10% of the movies that have missing values,
-# we will see how we treat missing values, some possible solutions
+# Some movies have missing values.
+# We will see how we treat missing values, some possible solutions
 # are to drop the rows with missing values, or to impute the missing values.
 # Some columns are not null but this does not mean
 # that the value in them is correct as we will see in the following part.
@@ -332,7 +336,7 @@ df_joined.groupby('overview').count().sort_values(
 # %% [markdown]
 # Some overview values indicate that the value is missing with values such as "No Overview" or
 # "No overview found." and some overviews are quite general like "Bollywood 1972"
-# or "Mexican feature film" and some are comletely wrong like
+# or "Mexican feature film" and some are completely wrong for example
 # "No one has entered a biography for him." or "What the movie has in store for you,
 #  wait and watch this space for more updates.". We will have to find a way to keep only
 # rows that have a correct overview, a good start would be to keep only the ones that are unique
@@ -421,7 +425,8 @@ df_movies_genre.sort_values(by='nb_movies', ascending=False).plot(
     kind='bar', title='Number of movies per genre in the corrsponding streaming services')
 
 # %% [markdown]
-# Movies can have multiple categories, for example one movie might have the category action and drama.
+# Movies can have multiple genres, for example one movie might have the category action and drama which means that
+# the movie would be counted in both bins.
 # This concludes our exploration of the dataset, we are now ready to start working on milestone 3.
 
 # %% [markdown]
@@ -472,8 +477,10 @@ print(round(total_no_overview / len(df_plots) * 100, 1),
       '% of movies have a no overview')
 
 # %% [markdown]
-# 12% of movies without overview is tolerable given that our dataset is large, but firstly our search is not exhaustive,
-# and secondly we will $\\$ have to check that most of the movies on the streaming platforms have an overview to be
+# 12% of movies without overview are tolerable given that our dataset is large,
+# but firstly our search is not exhaustive,
+# and secondly we will $\\$ have to check that most of the movies on the streaming
+# platforms have an overview to be
 # able to apply NLP.
 
 # %%
