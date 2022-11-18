@@ -1,4 +1,4 @@
-# TO RENAME - Lad3k
+# Streaming Services DNA
 
 ## Installation
 ```bash
@@ -13,10 +13,6 @@ To not track the changes in config.py, you can use the following command:
  git update-index --assume-unchanged src/config.py
 ```
 
-
-# Title
-
-Streaming Services DNA
 
 ## abstract
 
@@ -45,11 +41,11 @@ provide each movie, as well as the movie's description, budget, revenue, etc.
 
 ### General flow
 
-We first need to make sure that we have relevant information describing different movies on differett platforms and we will have to select the most relevant ones (**(1)**). We will use basic statistics to describe different movies on different platforms. We will use NLP to extract useful information from the overview and add them to our relevant features (**(2)**).
+We first need to make sure that we have relevant information describing different movies on different platforms and we will have to select the most relevant ones **(1)**. We will use basic statistics to describe different movies on different platforms. We will use NLP to extract useful information from the overview and add them to our relevant features **(2)**.
 
-To predict on which streaming service a movie is on, would be to compare this movie's distance with the movies present on each streaming platform. In order to so, we need to define a distance function between movies (**(3)**). We will also have to normalize these features after selecting the most relevant ones. We may consider other classification models like random forest or Deep learning.
+To predict on which streaming service a movie is on, would be to compare this movie's distance with the movies present on each streaming platform. In order to so, we need to define a distance function between movies **(3)**. We will also have to pre-process these features (depending on their distribution) after selecting the most relevant ones. We may consider other classification models like random forest or Deep learning.
 
-We will split our dataset to two : training and testing. We will perform cross-validation on our training/testing dataset to compare different models and avoid overffiting. We will repeat this procedure for all candidate models and pick the one with the lowest error. It's essential to define a model evaluation metric to compare our different models (more on this in methods for **(4)**).
+We will split our dataset in three parts: training, testing and validation. We will use the training and testing datasets in order to train our model. Finally we will evalutate its performances on the validation set. We may also use cross-validation if we don't have enough data to train our model. We will repeat this procedure for all candidate models and pick the one with the lowest error. It's essential to define a model evaluation metric to compare our different models (which will be answered by solving **(4)**).
 
 
 
@@ -70,24 +66,21 @@ To answer question 1, we will analyze for each category of our dataset, if the d
 
 For the extraction of topics we will use LDA. This will involve preparing the movie descriptions in a way that can be interpreted by this model. We will also see if word embedding can be efficient to compare movies based on their description.
 
-### **(3)** Classification Model (KNN)
+### **(3)** Classification Model
 
 In order to define a classification model like KNN, we need to define a distance function to compare movies. In the choice of this function, we will take into account that this function must minimize the distance between movies belonging to the same streaming service, and ideally maximize the distance between the streaming services.
 
-### **(4)** evaluation metric
+### **(4)** Evaluation metric
 
-Next we need to define a loss function for the training. We can penalize a movie prediction as soon as the predicted value isn't the correct streaming service. We can also add a penalty parameter where to penaliye less if the movie was predicted on a streaming platform that we consider "close" to the expected one.
-
+Next we need to define a loss function for the training. The score is determined by the distance between the prediction and expected value. This distance will be defined depending on our model and if the predictions are discrete or continuous.
 
 ## Proposed timeline
 
-TODO
-
 - Platforms description: 18/11 -> 25/11
 - NLP over overview: 18/11 -> 25/11
-- KNN (or other classification models): 25/11 -> 12/12
+- Classification models: 25/11 -> 12/12
 - Evaluation metrics: 25/11 -> 12/12
-- front end Interface: 12/12 -> 24/12
+- Frontend Interface: 12/12 -> 24/12
 
 
 ## Organization within the team
@@ -99,8 +92,8 @@ TODO
 - Douglas: Exploration of some NLP techniques on the movies' plots
 
 ### P3
-- Ludovic: Distance metrics and Interface
-- Asfoury: NLP and interface
+- Ludovic: Selection of features for models and frontend
+- Asfoury: NLP and frontend
 - Karim: Platforms description and classification model
 - Douglas: NLP and classification model
 
