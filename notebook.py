@@ -9,7 +9,7 @@
 #       format_version: '1.3'
 #       jupytext_version: 1.11.2
 #   kernelspec:
-#     display_name: Python 3.9.13 ('ada_project')
+#     display_name: Python 3.9.15 ('ada_project')
 #     language: python
 #     name: python3
 # ---
@@ -533,7 +533,7 @@ plt.show()
 # #### Tokenization
 
 # %%
-# take a sample of 30% of the movies
+# take a sample of 10% of the movies
 df_plots_us = df_plots_us_overview.sample(frac=0.1, random_state=42)
 print(f'Number of movies in the sample: {len(df_plots_us)}')
 
