@@ -33,7 +33,12 @@ Pk on veut faire ca
 
 ## Additional Datasets
 
-TODO
+- [IMDb](https://www.imdb.com/interfaces/): Dataset provided by IMDb, containing information about movies, actors, directors, etc. and their ratings.
+
+- A self-made dataset created with [TMDB](https://www.themoviedb.org/). This new dataset contains most
+of the movies that we had in our IMBb dataset, since we created this by querying the TMDB API with
+the IMDb ID of each movie. This dataset contains information about the streaming platforms that
+provide each movie, as well as the movie's description, budget, revenue, etc.
 
 ## Methods
 
@@ -51,8 +56,11 @@ Finally we will see which one of these two models leads the best results on our 
 
 ### Datasets
 
-LUDO TIME TO SHINE
+The first self-added dataset was the one that we downloaded from the [IMDb](https://www.imdb.com/interfaces/) website. We downloaded it through a python [script](src/dataset_creation.py) that we wrote.
 
+The second one, is actually a self-made dataset created with [TMDB](https://www.themoviedb.org/). At the beginning, we were thinking of using one available on Kaggle, but we found that it was clearly missing some movies that we had in our IMDb dataset. So we decided to create our own dataset by querying the TMDB API with the IMDb ID of each movie.
+
+Since the greedy implementation of our download script was taking more than 1800 hours to request the API for each movie, we had to find a way to speed up the process. We decided to combine some multi-threading and multiprocessing to make it faster. We had some others issues to save the data since we discovered that in some case `pd.read_csv()` seems to not be bijective with `pd.to_csv()`. But finally, we managed to create our dataset in a reasonable amount of time. (The generated dataset is available [here](data/moviedb_data.tsv.gz) and contains around 290k lines).
 ### Research Questions Methodology
 
 ### **(1)** Features Selection
