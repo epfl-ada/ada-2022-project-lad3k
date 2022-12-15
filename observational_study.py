@@ -22,6 +22,7 @@ import pandas as pd
 import numpy as np
 from sklearn.preprocessing import MultiLabelBinarizer
 import statsmodels.formula.api as smf
+from sklearn.metrics import classification_report
 import networkx as nx
 from tqdm import tqdm
 
@@ -60,7 +61,7 @@ def plot_rating_distribution(df: pd.DataFrame):
     # plot the movie rating distribution on Netflix and Prime
     # rating is in column "averageRating"
     # a col "streaming_service" tells us if the movie is on Netflix, Prime or both
-    plt.hist(df[df['on_netflix'] is True]['averageRating'],
+    plt.hist(df[df['on_netflix'] == True]['averageRating'],
              bins=np.arange(0, 10.1, 0.5),
              alpha=0.5,
              density=True,
@@ -213,13 +214,20 @@ matching_df.columns
 
 # %%
 model = smf.logit(formula='on_netflix ~ normalized_numVotes + normalized_release_year + '
-                  'normalized_runtimeMinutes + C(Drama) + C(Comedy) + C(Action) + C(Romance) + C(Thriller)',
+                  'normalized_runtimeMinutes',
                   data=matching_df)
+# + C(Drama) + C(Comedy) + C(Action) + C(Romance) + C(Thriller)
 
 res = model.fit()
 matching_df['predicted_netflix'] = res.predict(matching_df)
 
 print(res.summary())
+
+
+# %%
+# generate a report on the classification
+print(classification_report(matching_df['on_netflix'], matching_df['predicted_netflix'].apply(
+    lambda x: 1 if x > 0.5 else 0)))
 
 
 # %%
@@ -275,9 +283,9 @@ for netflix_id, netflix_row in tqdm(df_netflix.iterrows(), total=df_netflix.shap
         if similarity < 0.5:
             continue
 
-        # # if genres are different, skip
-        # if any(netflix_row[top_5_genres] != prime_row[top_5_genres]):
-        #     continue
+        # if genres are different, skip
+        if any(netflix_row[top_5_genres] != prime_row[top_5_genres]):
+            continue
 
         # Add an edge between the two instances weighted by the similarity between them
         G.add_weighted_edges_from([(netflix_id, prime_id, similarity)])
