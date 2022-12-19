@@ -316,7 +316,7 @@ plt.show()
 # As we can see, the distribution is almost the same for each platform. This isn't so much surprising as
 # we've seen before that they have roughly the same proportion of movies for most of the categories.
 # Thus using topics in order to determine which streaming platform has the best rating will not be possible. This is
-# because as they have same distribution of topicc, we cannot discriminate them on the topics.
+# because as they have same distribution of topic, we cannot discriminate them on the topics.
 #
 #
 # ### NLP with sentiment analysis
@@ -327,6 +327,7 @@ plt.show()
 # ranging from 0 (completely objective) to 1 (completely subjective).
 
 # %%
+# compute the 'sentiment' of each movie overview
 netflix_blobs = [TextBlob(' '.join(plot))
                  for plot in df_overview_netflix['plots_without_stopwords']]
 prime_blobs = [TextBlob(' '.join(plot))
@@ -352,20 +353,53 @@ counts_netflix_polarity, bins, patches = ax1.hist(
 counts_prime_polarity, bins, patches = ax1.hist(
     prime_sentiments_polarity, bins=20, alpha=0.5, label='Prime', density=True)
 
-ax1.axvline(np.mean(netflix_sentiments_polarity), color='b',
-            linestyle='dashed', linewidth=1, label='Netflix mean')
-ax1.axvline(np.mean(prime_sentiments_polarity), color='r',
-            linestyle='dashed', linewidth=1, label='Prime mean')
+# compute the mean and median for each platform for the polarity
+ax1.axvline(np.mean(netflix_sentiments_polarity),
+            color='C0', linestyle='dashed', linewidth=1)
+ax1.axvline(np.median(netflix_sentiments_polarity),
+            color='C0', linestyle='dotted', linewidth=1)
+ax1.axvline(np.mean(prime_sentiments_polarity),
+            color='C1', linestyle='dashed', linewidth=1)
+ax1.axvline(np.median(prime_sentiments_polarity),
+            color='C1', linestyle='dotted', linewidth=1)
+
 
 counts_netflix_subjectivity, bins, patches = ax2.hist(
     netflix_sentiments_subjectivity, bins=20, alpha=0.5, label='Netflix', density=True)
 counts, bins, patches = ax2.hist(
     prime_sentiments_subjectivity, bins=20, alpha=0.5, label='Prime', density=True)
 
-ax2.axvline(np.mean(netflix_sentiments_subjectivity), color='b',
-            linestyle='dashed', linewidth=1, label='Netflix mean')
-ax2.axvline(np.mean(prime_sentiments_subjectivity), color='r',
-            linestyle='dashed', linewidth=1, label='Prime mean')
+# compute mean and median for each platform for the subjectivity
+ax2.axvline(np.mean(netflix_sentiments_subjectivity),
+            color='C0', linestyle='dashed', linewidth=1)
+ax2.axvline(np.median(netflix_sentiments_subjectivity),
+            color='C0', linestyle='dotted', linewidth=1)
+ax2.axvline(np.mean(prime_sentiments_subjectivity),
+            color='C1', linestyle='dashed', linewidth=1)
+ax2.axvline(np.median(prime_sentiments_subjectivity),
+            color='C1', linestyle='dotted', linewidth=1)
+
+
+# setup information displayed in the legend
+ax1_legend_elements = [
+    plt.Line2D([0], [0], color='C0', lw=4, label='Netflix'),
+    plt.Line2D([0], [0], color='C1', lw=4, label='Prime'),
+    plt.Line2D([0], [0], color='k', lw=1,
+               linestyle='dashed', label='Mean'),
+    plt.Line2D([0], [0], color='k', lw=1,
+               linestyle='dotted', label='Median')
+]
+ax1.legend(handles=ax1_legend_elements, loc='upper right')
+
+ax2_legend_elements = [
+    plt.Line2D([0], [0], color='C0', lw=4, label='Netflix'),
+    plt.Line2D([0], [0], color='C1', lw=4, label='Prime'),
+    plt.Line2D([0], [0], color='k', lw=1,
+               linestyle='dashed', label='Mean'),
+    plt.Line2D([0], [0], color='k', lw=1,
+               linestyle='dotted', label='Median')
+]
+ax2.legend(handles=ax2_legend_elements, loc='upper right')
 
 ax1.set_title('Polarity Distribution')
 ax1.set_xlabel('Polarity')
@@ -373,8 +407,6 @@ ax1.set_ylabel('Percentage of Movies (divided by 10)')
 ax2.set_title('Subjectivity Distribution')
 ax2.set_xlabel('Subjectivity')
 ax2.set_ylabel('Percentage of Movies (divided by 10)')
-ax1.legend()
-ax2.legend()
 plt.show()
 
 
@@ -393,8 +425,8 @@ t_statistic_polarity, p_value_polarity = ttest_ind(
 t_statistic_subjectivity, p_value_subjectivity = ttest_ind(
     prime_sentiments_subjectivity, netflix_sentiments_subjectivity)
 
-print('Polarity p-value', p_value_polarity)
-print('Subjectivity p-value', p_value_subjectivity)
+print('Polarity p-value ', round(p_value_polarity, 5))
+print('Subjectivity p-value', round(p_value_subjectivity, 4))
 
 
 # %% [markdown]
@@ -537,7 +569,7 @@ df.columns
 
 # %%
 matching_df = df[['averageRating', 'numVotes', 'release_year',
-                  'runtimeMinutes', 'genres', 'on_netflix', 'on_prime']].copy()
+                  'runtimeMinutes', 'genres', 'on_netflix', 'on_prime', 'sentiments_polarity']].copy()
 # we only keep numbers or values that we'll be able to transform to binary
 
 matching_df['on_netflix'] = matching_df['on_netflix'].apply(
@@ -632,6 +664,7 @@ plt.show()
 # We'll now compute a propensity score for each observation using a logistic regression.
 
 # %%
+# TODO do we normalize the sentiment ? (it's already between -1 and 1)
 features_to_normalize = ['numVotes', 'release_year', 'runtimeMinutes']
 for feature in features_to_normalize:
     matching_df['normalized_' + feature] = (
@@ -642,7 +675,7 @@ matching_df.columns
 
 # %%
 model = smf.logit(formula='on_netflix ~ normalized_numVotes + normalized_release_year + '
-                  'normalized_runtimeMinutes',
+                  'normalized_runtimeMinutes + sentiments_polarity',
                   data=matching_df)
 # + C(Drama) + C(Comedy) + C(Action) + C(Romance) + C(Thriller)
 
@@ -656,7 +689,6 @@ print(res.summary())
 # generate a report on the classification
 print(classification_report(matching_df['on_netflix'], matching_df['predicted_netflix'].apply(
     lambda x: 1 if x > 0.5 else 0)))
-
 
 # %%
 # update df with the predicted probability of being on netflix
@@ -759,7 +791,6 @@ for i, col in enumerate(
                                 label='Prime', density=True, bins=20)
         axs[i // 3, i % 3].set_ylabel('density')
     elif col in ['numVotes']:
-
         max_x_value = max(df_netflix[col].max(), df_prime[col].max())
         bins_logspace = np.logspace(0, np.log10(max_x_value), 40)
 
@@ -769,6 +800,12 @@ for i, col in enumerate(
                                 label='Prime', bins=bins_logspace)
         axs[i // 3, i % 3].set_xscale('log')
         axs[i // 3, i % 3].set_ylabel('number of movies')
+    elif col in ['sentiments_polarity']:
+        axs[i // 3, i % 3].hist(df_netflix[col], alpha=0.5,
+                                label='Netflix', density=True, bins=20)
+        axs[i // 3, i % 3].hist(df_prime[col], alpha=0.5,
+                                label='Prime', density=True, bins=20)
+        axs[i // 3, i % 3].set_ylabel('density')
     else:
         # binary features, columns charts is the more appropriate
         width = 0.25
@@ -783,5 +820,13 @@ for i, col in enumerate(
     axs[i // 3, i % 3].set_title(col)
 axs[-1, -1].axis('off')  # hide last subplot as nothing in it
 plt.show()
+
+# %%
+# perform ttest over df_netflix[col] and df_prime[col]
+
+t_statistic_polarity, p_value_polarity = ttest_ind(
+    df_prime['sentiments_polarity'], df_netflix['sentiments_polarity'])
+print(f't-statistic: {t_statistic_polarity}, p-value: {p_value_polarity}')
+
 
 # %%
