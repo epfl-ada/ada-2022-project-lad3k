@@ -397,6 +397,14 @@ print('Polarity p-value', p_value_polarity)
 print('Subjectivity p-value', p_value_subjectivity)
 
 
+# %% [markdown]
+# As the p-value is less than 0.05, it suggests that the difference between the means of the two distributions is
+# statistically significant, and we can reject the null hypothesis that the two distributions are similar.
+# We can see that this analysis is true for both polarity and subjectivity.
+#
+# We will then see in the following of this project, if polarity and subjectivity of overviews can help to determine
+# which streaming service is the best.
+
 # %%
 # print the first element of df_overview
 print(df_overview['overview'].iloc[0])
@@ -423,45 +431,27 @@ df_overview_netflix = df_overview_netflix.drop(
 df_overview_bis = pd.concat([df_overview_prime, df_overview_netflix])
 df_overview_bis.head()
 
-# %%
-# Create the dataframe from our datasets
-df = helper.prepare_df()
-df['genres'] = df['genres'].apply(lambda x: x.split(','))
-
-# %%
-print(len(df_overview_bis))
-print(len(df))
-df.head()
-df_new = df.reset_index(drop=True)
-# print the index of the first movie in df_overview_bis
-print(df_overview_bis.index[0])
-#  print the index of the first movie in df
-print(df_new.index[0])
-# print the df at index 7496
-print(df_new.loc[7496])
-# merge the 2 dataframes on the index
-df_overview_bis = df_overview_bis.reset_index(drop=True)
-df_new = df_new.reset_index(drop=True)
-df_overview_bis = df_overview_bis.merge(
-    df_new, left_index=True, right_index=True)
-df_overview_bis.head()
-
-# %% [markdown]
-# As the p-value is less than 0.05, it suggests that the difference between the means of the two distributions is
-# statistically significant, and we can reject the null hypothesis that the two distributions are similar.
-# We can see that this analysis is true for both polarity and subjectivity.
-#
-# We will then see in the following of this project, if polarity and subjectivity of overviews can help to determine
-# which streaming service is the best.
-
 # %% [markdown]
 # # Observational Studies
 
 # %%
-# Create the dataframe from our datasets
 df = helper.prepare_df()
 df['genres'] = df['genres'].apply(lambda x: x.split(','))
-df.head()
+df.reset_index(drop=True, inplace=True)
+# merge the original dataframe and the one containing the sentiment analysis
+merged_df = df.merge(df_overview_bis, left_index=True,
+                     right_index=True, suffixes=('', '_df2'))
+# Get the list of common columns between the two dataframes
+common_columns = list(set(df.columns) & set(df_overview_bis.columns))
+
+# Keep only the column from the first dataframe for each common column
+for col in common_columns:
+    merged_df[col] = merged_df[col]
+    merged_df.drop(columns=[col + '_df2'], inplace=True)
+
+merged_df = merged_df[~merged_df.index.duplicated(keep='first')]
+df = merged_df.copy()
+print(len(df))
 
 
 # %% [markdown]
@@ -583,7 +573,8 @@ matching_df.head()
 # %%
 # pairplot but only with averageRating
 sns.pairplot(df[['averageRating', 'numVotes', 'directors',
-                 'release_year', 'runtimeMinutes', 'streaming_service']], hue='streaming_service')
+                 'release_year', 'runtimeMinutes', 'streaming_service', 'sentiments_polarity']],
+             hue='streaming_service')
 plt.show()
 
 # %%
@@ -614,6 +605,13 @@ for i, col in enumerate([x for x in df_netflix.columns if x not in ['averageRati
                                 label='Prime', bins=bins_logspace)
         axs[i // 3, i % 3].set_xscale('log')
         axs[i // 3, i % 3].set_ylabel('number of movies')
+    elif col in ['sentiments_polarity']:
+        # TODO why density is multiplied by 10?
+        axs[i // 3, i % 3].hist(df_netflix[col], alpha=0.5,
+                                bins=20, density=True, label='Netflix')
+        axs[i // 3, i % 3].hist(df_prime[col], alpha=0.5,
+                                bins=20, density=True, label='Prime')
+        axs[i // 3, i % 3].set_ylabel('density (multiplied by 10)')
     else:
         # binary features, columns charts is the more appropriate
         width = 0.25
