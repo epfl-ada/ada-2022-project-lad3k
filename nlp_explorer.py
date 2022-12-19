@@ -821,12 +821,26 @@ for i, col in enumerate(
 axs[-1, -1].axis('off')  # hide last subplot as nothing in it
 plt.show()
 
+# %% [markdown]
+# #### Analyzing the results of the matching
+#
+# First we see that the 5 categories we matched have the exact same distribution over netflix and prime. This was
+# expected as the matching on categories was perfect. Now for the other features we can see from the plots that
+# the distributions of netflix and prime seems closer than before matching. We can now verify with some T-tests.
+
 # %%
-# perform ttest over df_netflix[col] and df_prime[col]
+for col in ['numVotes', 'runtimeMinutes', 'sentiments_polarity', 'release_year']:
+    t_statistic_polarity, p_value_polarity = ttest_ind(
+        df_prime[col], df_netflix[col], equal_var=False)
+    print(f'{col}: t-statistic: {round(t_statistic_polarity, 2)}, p-value: {round(p_value_polarity,2)}')
 
-t_statistic_polarity, p_value_polarity = ttest_ind(
-    df_prime['sentiments_polarity'], df_netflix['sentiments_polarity'])
-print(f't-statistic: {t_statistic_polarity}, p-value: {p_value_polarity}')
 
+# %% [markdown]
+# We see that for runtime and sentiments polarity, the p-value is greater than some threshold of 0.05. Thus we
+# cannot reject the null hypothesis that the two distributions are equals. For numVotes and release_year the p-value
+# is still lower than the threshold. We can reject the null hypothesis, so the two distributions are still unequal.
+# This can be expected as we try to match on a lots of parameters, and we don't make a perfect matching, so it's still
+# normal to observe some drift between the netflix and prime distributions. We can however see that even if
+# distributions are not equals for numVotes and realease_year, they seems more similar than prior matching.
 
 # %%
