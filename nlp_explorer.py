@@ -39,6 +39,9 @@ from src.nlp_helper import get_wordnet_pos, build_dictionnary_and_corpus,\
 from nltk.tokenize import word_tokenize
 from nltk.stem.wordnet import WordNetLemmatizer
 import math
+import plotly.graph_objs as go
+from plotly.subplots import make_subplots
+
 
 nltk.download('wordnet')
 nltk.download('omw-1.4')
@@ -293,23 +296,25 @@ prime_index = df_overview_prime.index.tolist()
 prime_topics_dist = get_topic_distributions_for_movies(
     prime_index, topic_distributions, n_topics)
 
-
-# plot the two distributions
-plt.figure(figsize=(10, 5))
+tick_positions = np.array(range(n_topics))
 bar_width = 0.4
-plt.bar(np.array(range(n_topics)) + bar_width, netflix_topics_dist,
-        label='Netflix', alpha=0.5, width=bar_width)
-plt.bar(range(n_topics), prime_topics_dist,
-        label='Prime', alpha=0.5, width=bar_width)
-# center tick marks and labels on middle of the two columns
-tick_positions = np.array(range(n_topics)) + bar_width / 2
-plt.xticks(tick_positions, range(n_topics))
-plt.xticks(tick_positions, names, rotation=90)
-plt.xlabel('Topic')
-plt.ylabel('Distribution over topics')
-plt.title('Topic distribution for movies on Netflix and Prime')
-plt.legend()
-plt.show()
+fig = go.Figure(data=[
+    go.Bar(name='Netflix', x=list(range(n_topics)), y=netflix_topics_dist, width=bar_width, marker_color='#636EFA',
+           opacity=0.8),
+    go.Bar(name='Prime', x=list(range(n_topics)), y=prime_topics_dist, width=bar_width, marker_color='#FFA15A',
+           opacity=0.8)
+])
+
+fig.update_layout(
+    height=500,
+    xaxis=dict(tickvals=tick_positions, ticktext=names, tickangle=-90),
+    yaxis=dict(title='Distribution over topics'),
+    title=dict(
+        text='Topic distribution for movies on Netflix and Prime', x=0.45, y=0.9),
+    legend_orientation='h',
+    legend=dict(x=1, y=1)
+)
+fig.show()
 
 
 # %% [markdown]
@@ -346,68 +351,81 @@ netflix_sentiments_polarity = [
 netflix_sentiments_subjectivity = [
     sentiment.subjectivity for sentiment in netflix_sentiments]
 
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+# divide prime_sentiments_polarity into 20 bins and compute the number of movies in each bin
+# then divide by the total number of movies to get the distribution
+prime_sentiments_polarity_dist = np.histogram(
+    prime_sentiments_polarity, bins=20)[0] / len(prime_sentiments_polarity)
+netflix_sentiments_polarity_dist = np.histogram(
+    netflix_sentiments_polarity, bins=20)[0] / len(netflix_sentiments_polarity)
+prime_sentiments_subjectivity_dist = np.histogram(
+    prime_sentiments_subjectivity, bins=20)[0] / len(prime_sentiments_subjectivity)
+netflix_sentiments_subjectivity_dist = np.histogram(
+    netflix_sentiments_subjectivity, bins=20)[0] / len(netflix_sentiments_subjectivity)
 
-counts_netflix_polarity, bins, patches = ax1.hist(
-    netflix_sentiments_polarity, bins=20, alpha=0.5, label='Netflix', density=True)
-counts_prime_polarity, bins, patches = ax1.hist(
-    prime_sentiments_polarity, bins=20, alpha=0.5, label='Prime', density=True)
-
-# compute the mean and median for each platform for the polarity
-ax1.axvline(np.mean(netflix_sentiments_polarity),
-            color='C0', linestyle='dashed', linewidth=1)
-ax1.axvline(np.median(netflix_sentiments_polarity),
-            color='C0', linestyle='dotted', linewidth=1)
-ax1.axvline(np.mean(prime_sentiments_polarity),
-            color='C1', linestyle='dashed', linewidth=1)
-ax1.axvline(np.median(prime_sentiments_polarity),
-            color='C1', linestyle='dotted', linewidth=1)
+netflix_color = '#636EFA'
+prime_color = '#FFA15A'
 
 
-counts_netflix_subjectivity, bins, patches = ax2.hist(
-    netflix_sentiments_subjectivity, bins=20, alpha=0.5, label='Netflix', density=True)
-counts, bins, patches = ax2.hist(
-    prime_sentiments_subjectivity, bins=20, alpha=0.5, label='Prime', density=True)
-
-# compute mean and median for each platform for the subjectivity
-ax2.axvline(np.mean(netflix_sentiments_subjectivity),
-            color='C0', linestyle='dashed', linewidth=1)
-ax2.axvline(np.median(netflix_sentiments_subjectivity),
-            color='C0', linestyle='dotted', linewidth=1)
-ax2.axvline(np.mean(prime_sentiments_subjectivity),
-            color='C1', linestyle='dashed', linewidth=1)
-ax2.axvline(np.median(prime_sentiments_subjectivity),
-            color='C1', linestyle='dotted', linewidth=1)
-
-
-# setup information displayed in the legend
-ax1_legend_elements = [
-    plt.Line2D([0], [0], color='C0', lw=4, label='Netflix'),
-    plt.Line2D([0], [0], color='C1', lw=4, label='Prime'),
-    plt.Line2D([0], [0], color='k', lw=1,
-               linestyle='dashed', label='Mean'),
-    plt.Line2D([0], [0], color='k', lw=1,
-               linestyle='dotted', label='Median')
+bar_width = 1.0
+fig = make_subplots(rows=1, cols=2,
+                    subplot_titles=('sentiment polarity distribution', 'sentiment subjectivity distribution'))
+data_polarity = [
+    go.Bar(name='Netflix', x=list(range(-10, 11)), y=netflix_sentiments_polarity_dist, width=bar_width,
+           marker_color=netflix_color, opacity=0.5),
+    go.Bar(name='Prime', x=list(range(-10, 11)), y=prime_sentiments_polarity_dist, width=bar_width,
+           marker_color=prime_color, opacity=0.5)
 ]
-ax1.legend(handles=ax1_legend_elements, loc='upper right')
-
-ax2_legend_elements = [
-    plt.Line2D([0], [0], color='C0', lw=4, label='Netflix'),
-    plt.Line2D([0], [0], color='C1', lw=4, label='Prime'),
-    plt.Line2D([0], [0], color='k', lw=1,
-               linestyle='dashed', label='Mean'),
-    plt.Line2D([0], [0], color='k', lw=1,
-               linestyle='dotted', label='Median')
+data_subjectivity = [
+    go.Bar(name='Netflix', x=list(range(21)), y=netflix_sentiments_subjectivity_dist, width=bar_width,
+           marker_color=netflix_color, opacity=0.5, showlegend=False),
+    go.Bar(name='Prime', x=list(range(21)), y=prime_sentiments_subjectivity_dist, width=bar_width,
+           marker_color=prime_color, opacity=0.5, showlegend=False)
 ]
-ax2.legend(handles=ax2_legend_elements, loc='upper right')
+fig.add_traces(data_polarity, rows=1, cols=1)
+fig.add_traces(data_subjectivity, rows=1, cols=2)
 
-ax1.set_title('Polarity Distribution')
-ax1.set_xlabel('Polarity')
-ax1.set_ylabel('Percentage of Movies (divided by 10)')
-ax2.set_title('Subjectivity Distribution')
-ax2.set_xlabel('Subjectivity')
-ax2.set_ylabel('Percentage of Movies (divided by 10)')
-plt.show()
+# compute mean and median for each distribution for each service
+netflix_polarity_mean = np.mean(netflix_sentiments_polarity)
+netflix_polarity_median = np.median(netflix_sentiments_polarity)
+prime_polarity_mean = np.mean(prime_sentiments_polarity)
+prime_polarity_median = np.median(prime_sentiments_polarity)
+print(f'Netflix polarity mean: {netflix_polarity_mean:.2f}')
+print(f'Netflix polarity median: {netflix_polarity_median:.2f}')
+print(f'Prime polarity mean: {prime_polarity_mean:.2f}')
+print(f'Prime polarity median: {prime_polarity_median:.2f}')
+# add 0.1 to the x value to avoid overlapping with the bars
+# data = [go(x=[netflix_polarity_mean+0.1], y=[0.33], mode='markers', marker=dict(color='blue', size=10),\
+#         name='Netflix Mean'),
+#         go.Scatter(x=[netflix_polarity_median+0.1], y=[0.33], mode='markers', marker=dict(color='blue', size=10),\
+#         name='Netflix Median')
+#     ]
+# fig.add_traces(data, rows=1, cols=1)
+
+
+# fig.add_shape(type='line', x0=netflix_polarity_mean+0.1, x1=netflix_polarity_mean+0.1, y0=0, y1=0.33,\
+#    name='Netflix Mean', row=1, col=1, line=dict(color='blue', width=1, dash='dash'))
+
+
+x_tick_values_polarity = list(range(-10, 11))
+x_tick_values_subjectivity = list(range(21))
+x_tick_labels_polarity = [f'{i / 10:.1f}' for i in x_tick_values_polarity]
+x_tick_labels_subjectivity = [
+    f'{i / 20:.2f}' for i in x_tick_values_subjectivity]
+fig.update_layout(
+    height=500,
+    xaxis=dict(tickvals=x_tick_values_polarity,
+               ticktext=x_tick_labels_polarity, tickangle=-90),
+    yaxis=dict(title='density'),
+    legend_orientation='h',
+    legend=dict(x=1, y=1)
+)
+fig.update_xaxes(tickvals=x_tick_values_subjectivity,
+                 ticktext=x_tick_labels_subjectivity, tickangle=-90, row=1, col=2)
+fig.update_yaxes(title_text='density', row=1, col=2)
+fig.update_xaxes(title_text='sentiment polarity', row=1, col=1)
+fig.update_xaxes(title_text='sentiment subjectivity', row=1, col=2)
+fig.update_layout(barmode='overlay')
+fig.show()
 
 
 # %% [markdown]
