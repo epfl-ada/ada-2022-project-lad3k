@@ -38,6 +38,7 @@ from src.nlp_helper import get_wordnet_pos, build_dictionnary_and_corpus,\
     create_lda_model, get_topics, get_topic_distribution
 from nltk.tokenize import word_tokenize
 from nltk.stem.wordnet import WordNetLemmatizer
+import math
 
 nltk.download('wordnet')
 nltk.download('omw-1.4')
@@ -199,7 +200,6 @@ n_passes = 10  # almost converged after 5 iterations
 # #### LDA Model
 
 # %%
-# not so bad
 no_below = 10
 no_above = 0.5
 n_topics = 12
@@ -464,7 +464,7 @@ df_overview_bis = pd.concat([df_overview_prime, df_overview_netflix])
 df_overview_bis.head()
 
 # %% [markdown]
-# # Observational Studies
+# # Observational Study
 
 # %%
 df = helper.prepare_df()
@@ -485,6 +485,22 @@ merged_df = merged_df[~merged_df.index.duplicated(keep='first')]
 df = merged_df.copy()
 print(len(df))
 
+# %% [markdown]
+# ### Data Cleaning
+#
+# We check if we have some undefined values in the dataframe.
+
+# %%
+# for each column, if there are missing values, print the number of missing values and remove the line.
+for col in df.columns:
+    if (df[col].isna().sum()) > 0:
+        print(f'{col} has {df[col].isna().sum()} missing values')
+        # remove the line with missing values
+        df.dropna(subset=[col], inplace=True)
+
+# %% [markdown]
+# We decided to drop the line as replacing them with mean of runtime could biaise our data, and the number
+# of missing value was around 2% of the total data.
 
 # %% [markdown]
 # # Naive analysis
@@ -579,22 +595,26 @@ matching_df['on_prime'] = matching_df['on_prime'].apply(
 
 # %%
 # create a list of genres with their occurences
-genres = []
+genres = dict()
 for genre in matching_df['genres']:
-    genres.extend(genre)
-genres = pd.Series(genres).value_counts()
-top_5_genres = genres[:5].index
-print(f'Top 5 genres: {top_5_genres.values}')
+    for g in genre:
+        if g in genres:
+            genres[g] += 1
+        else:
+            genres[g] = 1
 
-# compute in how many movies there is at least one of the top 5 genres
-top_5_genres_df = matching_df[matching_df['genres'].apply(
-    lambda x: any(genre in x for genre in top_5_genres))]
-print(f'There is {top_5_genres_df.shape[0]/matching_df.shape[0]*100:.2f}'
-      '% of movies with at least one of the top 5 genres')
+# remove \N
+genres.pop('\\N')
+
+# create a list sorted by occurrences, keeping only the genres
+genres = [genre for genre, _ in sorted(
+    genres.items(), key=lambda item: -item[1])]
+
+genres
 
 
 # %%
-mlb = MultiLabelBinarizer(classes=top_5_genres)
+mlb = MultiLabelBinarizer(classes=genres)
 
 genres_df = pd.DataFrame(mlb.fit_transform(
     matching_df['genres']), columns=mlb.classes_, index=matching_df.index)
@@ -618,53 +638,107 @@ df_prime.drop(columns=['on_netflix', 'on_prime'], inplace=True)
 
 
 # %%
-fig, axs = plt.subplots(3, 3, figsize=(15, 15))
-for i, col in enumerate([x for x in df_netflix.columns if x not in ['averageRating']]):
-    if col in ['release_year', 'runtimeMinutes']:
-        axs[i // 3, i % 3].hist(df_netflix[col], alpha=0.5,
-                                label='Netflix', density=True, bins=20)
-        axs[i // 3, i % 3].hist(df_prime[col], alpha=0.5,
-                                label='Prime', density=True, bins=20)
-        axs[i // 3, i % 3].set_ylabel('density')
-    elif col in ['numVotes']:
+def plot_hist_matching(df_netflix: pd.DataFrame, df_prime: pd.DataFrame):
+    """
+    Plot the histogram of the matching features on Netflix and Prime
 
-        max_x_value = max(df_netflix[col].max(), df_prime[col].max())
-        bins_logspace = np.logspace(0, np.log10(max_x_value), 40)
+    Args:
+        df_netflix (pd.DataFrame): The dataframe containing the data for Netflix
+        df_prime (pd.DataFrame): The dataframe containing the data for Prime
+    """
 
-        axs[i // 3, i % 3].hist(df_netflix[col], alpha=0.5,
-                                label='Netflix', bins=bins_logspace)
-        axs[i // 3, i % 3].hist(df_prime[col], alpha=0.5,
-                                label='Prime', bins=bins_logspace)
-        axs[i // 3, i % 3].set_xscale('log')
-        axs[i // 3, i % 3].set_ylabel('number of movies')
-    elif col in ['sentiments_polarity']:
-        # TODO why density is multiplied by 10?
-        axs[i // 3, i % 3].hist(df_netflix[col], alpha=0.5,
-                                bins=20, density=True, label='Netflix')
-        axs[i // 3, i % 3].hist(df_prime[col], alpha=0.5,
-                                bins=20, density=True, label='Prime')
-        axs[i // 3, i % 3].set_ylabel('density (multiplied by 10)')
-    else:
-        # binary features, columns charts is the more appropriate
-        width = 0.25
-        x = np.arange(2)
-        axs[i // 3, i % 3].bar(x + width/2, df_netflix[col].value_counts(
-            normalize=True), width=width, label='Netflix', alpha=0.5)
-        axs[i // 3, i % 3].bar(x - width/2, df_prime[col].value_counts(
-            normalize=True), width=width, label='Prime', alpha=0.5)
-        axs[i // 3, i % 3].set_xticks(x, ('0', '1'))
-        axs[i // 3, i % 3].set_ylabel('density')
-    axs[i // 3, i % 3].legend()
-    axs[i // 3, i % 3].set_title(col)
-axs[-1, -1].axis('off')  # hide last subplot as nothing in it
-plt.show()
+    fig, axs = plt.subplots(2, 2, figsize=(15, 5))
+    for i, col in enumerate(['numVotes', 'release_year', 'runtimeMinutes', 'sentiments_polarity']):
+        if col in ['release_year', 'runtimeMinutes']:
+            axs[i//2, i % 2].hist(df_netflix[col], alpha=0.5,
+                                  label='Netflix', density=True, bins=20)
+            axs[i//2, i % 2].hist(df_prime[col], alpha=0.5,
+                                  label='Prime', density=True, bins=20)
+            axs[i//2, i % 2].set_ylabel('density')
+        elif col in ['numVotes']:
+            max_x_value = max(df_netflix[col].max(), df_prime[col].max())
+            bins_logspace = np.logspace(0, np.log10(max_x_value), 40)
 
+            axs[i//2, i % 2].hist(df_netflix[col], alpha=0.5,
+                                  label='Netflix', bins=bins_logspace)
+            axs[i//2, i % 2].hist(df_prime[col], alpha=0.5,
+                                  label='Prime', bins=bins_logspace)
+            axs[i//2, i % 2].set_xscale('log')
+            axs[i//2, i % 2].set_ylabel('number of movies')
+        elif col in ['sentiments_polarity']:
+            axs[i//2, i % 2].hist(df_netflix[col], alpha=0.5,
+                                  label='Netflix', density=True, bins=20)
+            axs[i//2, i % 2].hist(df_prime[col], alpha=0.5,
+                                  label='Prime', density=True, bins=20)
+            axs[i//2, i % 2].set_ylabel('density')
+        else:
+            # should never happen
+            raise ValueError('column not found')
+        axs[i//2, i % 2].legend()
+        axs[i//2, i % 2].set_title(col)
+    # axs[-1, -1].axis('off')  # hide last subplot as nothing in it
+    # increase space between subplots
+    fig.tight_layout()
+    plt.show()
+
+
+plot_hist_matching(df_netflix, df_prime)
+# compute some statistics to see if the distributions are different
+for col in ['numVotes', 'runtimeMinutes', 'sentiments_polarity', 'release_year']:
+    t_statistic_polarity, p_value_polarity = ttest_ind(
+        df_prime[col], df_netflix[col], equal_var=False)
+    print(f'{col}: t-statistic: {round(t_statistic_polarity, 2)}, p-value: {round(p_value_polarity,2)}')
+
+
+# %% [markdown]
+# We see that all p-values are lower than the treshold of 0.05. We can reject our null hypothesis that the distibutions
+# of netflix and prime are equal for each feature. We will see if we can matched the film between prime and netflix
+# to obtain the same distribution for each feature.
+
+# %%
+def plot_genre_distribution(df_netflix: pd.DataFrame, df_prime: pd.DataFrame):
+    """Plot the genre distribution on Netflix and Prime
+
+    Args:
+        df_netflix (pd.DataFrame): The dataframe containing the data for Netflix
+        df_prime (pd.DataFrame): The dataframe containing the data for Prime
+    """
+
+    # genres should be sorted by occurences
+    max_y_axis = max(df_netflix[genres].sum().max(
+    ) / len(df_netflix), df_prime[genres].sum().max() / len(df_prime))
+    # round up to next multiple of 0.1
+    max_y_axis = math.ceil(max_y_axis * 10) / 10
+
+    fig, ax = plt.subplots(figsize=(15, 5))
+    bar_width = 0.35
+    # genres = ['Horror', 'Action']
+
+    # we add the bar_width to the x axis to have the bars side by side
+    ax.bar(np.arange(len(genres)) + bar_width, df_netflix[genres].sum() / len(df_netflix), bar_width,
+           alpha=0.5, label='Netflix')
+    ax.bar(np.arange(len(genres)), df_prime[genres].sum() / len(df_prime), bar_width,
+           alpha=0.5, label='Prime')
+
+    # set the x axis ticks to the genre names
+    ax.set_xticklabels(genres, rotation=90)
+    ax.set_xticks(np.arange(len(genres)) + bar_width / 2)
+
+    ax.set_xlabel('Genre')
+    ax.set_ylabel('% of Movies')
+    ax.set_title('% of Movies per Genre per Streaming Service')
+    ax.legend()
+
+    plt.show()
+
+
+plot_genre_distribution(df_netflix, df_prime)
 
 # %% [markdown]
 # We'll now compute a propensity score for each observation using a logistic regression.
 
 # %%
-# TODO do we normalize the sentiment ? (it's already between -1 and 1)
+# we don't normalize the sentiments_polarity as it is already between -1 and 1
 features_to_normalize = ['numVotes', 'release_year', 'runtimeMinutes']
 for feature in features_to_normalize:
     matching_df['normalized_' + feature] = (
@@ -677,7 +751,6 @@ matching_df.columns
 model = smf.logit(formula='on_netflix ~ normalized_numVotes + normalized_release_year + '
                   'normalized_runtimeMinutes + sentiments_polarity',
                   data=matching_df)
-# + C(Drama) + C(Comedy) + C(Action) + C(Romance) + C(Thriller)
 
 res = model.fit()
 matching_df['predicted_netflix'] = res.predict(matching_df)
@@ -689,6 +762,7 @@ print(res.summary())
 # generate a report on the classification
 print(classification_report(matching_df['on_netflix'], matching_df['predicted_netflix'].apply(
     lambda x: 1 if x > 0.5 else 0)))
+
 
 # %%
 # update df with the predicted probability of being on netflix
@@ -721,19 +795,28 @@ def get_similarity(propensity_score1, propensity_score2):
 
 # %%
 # only keep 10%
-df_netflix = df_netflix.sample(frac=0.1)
-df_prime = df_prime.sample(frac=0.1)
+df_netflix = df_netflix.sample(frac=0.2)
+df_prime = df_prime.sample(frac=0.2)
 
 
 # %%
+# create a set of genres for each movie, to make comparisons faster (>50x faster)
+df_netflix['genres'] = df_netflix[genres].apply(
+    lambda x: set(x[x == 1].index), axis=1)
+df_prime['genres'] = df_prime[genres].apply(
+    lambda x: set(x[x == 1].index), axis=1)
+
 G = nx.Graph()
 
-# Loop through all the pairs of instances
 for netflix_id, netflix_row in tqdm(df_netflix.iterrows(), total=df_netflix.shape[0]):
     for prime_id, prime_row in df_prime.iterrows():
 
         # (less edges in the graph, faster computation)
         # here we put some conditions to avoid adding edges between instances that are too different
+
+        # if genres are different, skip
+        if netflix_row['genres'] != prime_row['genres']:
+            continue
 
         # Calculate the similarity
         similarity = get_similarity(netflix_row['predicted_netflix'],
@@ -743,12 +826,9 @@ for netflix_id, netflix_row in tqdm(df_netflix.iterrows(), total=df_netflix.shap
         if similarity < 0.5:
             continue
 
-        # if genres are different, skip
-        if any(netflix_row[top_5_genres] != prime_row[top_5_genres]):
-            continue
-
         # Add an edge between the two instances weighted by the similarity between them
         G.add_weighted_edges_from([(netflix_id, prime_id, similarity)])
+
 
 # %%
 print(f'nb of nodes: {G.number_of_nodes()}')
@@ -774,73 +854,37 @@ df_prime.drop(columns=['on_netflix', 'on_prime'], inplace=True)
 len(balanced_df)
 
 # %%
-plot_rating_distribution(balanced_df)
-
-# %%
 df_netflix.columns
 
 # %%
-fig, axs = plt.subplots(3, 3, figsize=(15, 15))
-for i, col in enumerate(
-    [x for x in df_netflix.columns if x not in ['averageRating', 'predicted_netflix', 'normalized_numVotes',
-                                                'normalized_release_year', 'normalized_runtimeMinutes']]):
-    if col in ['release_year', 'runtimeMinutes']:
-        axs[i // 3, i % 3].hist(df_netflix[col], alpha=0.5,
-                                label='Netflix', density=True, bins=20)
-        axs[i // 3, i % 3].hist(df_prime[col], alpha=0.5,
-                                label='Prime', density=True, bins=20)
-        axs[i // 3, i % 3].set_ylabel('density')
-    elif col in ['numVotes']:
-        max_x_value = max(df_netflix[col].max(), df_prime[col].max())
-        bins_logspace = np.logspace(0, np.log10(max_x_value), 40)
-
-        axs[i // 3, i % 3].hist(df_netflix[col], alpha=0.5,
-                                label='Netflix', bins=bins_logspace)
-        axs[i // 3, i % 3].hist(df_prime[col], alpha=0.5,
-                                label='Prime', bins=bins_logspace)
-        axs[i // 3, i % 3].set_xscale('log')
-        axs[i // 3, i % 3].set_ylabel('number of movies')
-    elif col in ['sentiments_polarity']:
-        axs[i // 3, i % 3].hist(df_netflix[col], alpha=0.5,
-                                label='Netflix', density=True, bins=20)
-        axs[i // 3, i % 3].hist(df_prime[col], alpha=0.5,
-                                label='Prime', density=True, bins=20)
-        axs[i // 3, i % 3].set_ylabel('density')
-    else:
-        # binary features, columns charts is the more appropriate
-        width = 0.25
-        x = np.arange(2)
-        axs[i // 3, i % 3].bar(x + width/2, df_netflix[col].value_counts(
-            normalize=True), width=width, label='Netflix', alpha=0.5)
-        axs[i // 3, i % 3].bar(x - width/2, df_prime[col].value_counts(
-            normalize=True), width=width, label='Prime', alpha=0.5)
-        axs[i // 3, i % 3].set_xticks(x, ('0', '1'))
-        axs[i // 3, i % 3].set_ylabel('density')
-    axs[i // 3, i % 3].legend()
-    axs[i // 3, i % 3].set_title(col)
-axs[-1, -1].axis('off')  # hide last subplot as nothing in it
-plt.show()
-
-# %% [markdown]
-# #### Analyzing the results of the matching
-#
-# First we see that the 5 categories we matched have the exact same distribution over netflix and prime. This was
-# expected as the matching on categories was perfect. Now for the other features we can see from the plots that
-# the distributions of netflix and prime seems closer than before matching. We can now verify with some T-tests.
-
-# %%
+plot_hist_matching(df_netflix, df_prime)
 for col in ['numVotes', 'runtimeMinutes', 'sentiments_polarity', 'release_year']:
     t_statistic_polarity, p_value_polarity = ttest_ind(
         df_prime[col], df_netflix[col], equal_var=False)
     print(f'{col}: t-statistic: {round(t_statistic_polarity, 2)}, p-value: {round(p_value_polarity,2)}')
 
-
 # %% [markdown]
-# We see that for runtime and sentiments polarity, the p-value is greater than some threshold of 0.05. Thus we
-# cannot reject the null hypothesis that the two distributions are equals. For numVotes and release_year the p-value
+# We see that for runtime,sentiments polarity and numVotes, the p-value is greater than some threshold of 0.05. Thus we
+# cannot reject the null hypothesis that the two distributions are equals. For release_year the p-value
 # is still lower than the threshold. We can reject the null hypothesis, so the two distributions are still unequal.
 # This can be expected as we try to match on a lots of parameters, and we don't make a perfect matching, so it's still
 # normal to observe some drift between the netflix and prime distributions. We can however see that even if
-# distributions are not equals for numVotes and realease_year, they seems more similar than prior matching.
+# distributions are not equals for realease_year, they seems more similar than prior matching. We have seen that the
+# matching actually allows to have similar distribution of features over prime and netflix. This allows a more rigourous
+# comparison between the rating of movies on both streaming services.
+
+# %%
+plot_genre_distribution(df_netflix, df_prime)
+
+# %%
+plot_rating_distribution(balanced_df)
+
+# %%
+t_statistic_rating, p_value_rating = ttest_ind(
+    balanced_df[balanced_df['on_prime']
+                ]['averageRating'], balanced_df[balanced_df['on_netflix']]['averageRating'],
+    equal_var=False)
+print(
+    f'averageRating: t-statistic: {round(t_statistic_rating, 2)}, p-value: {round(p_value_rating,2)}')
 
 # %%
