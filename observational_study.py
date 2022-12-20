@@ -25,6 +25,7 @@ import statsmodels.formula.api as smf
 from sklearn.metrics import classification_report
 import networkx as nx
 from tqdm import tqdm
+import math
 
 
 # %%
@@ -61,7 +62,7 @@ def plot_rating_distribution(df: pd.DataFrame):
     # plot the movie rating distribution on Netflix and Prime
     # rating is in column "averageRating"
     # a col "streaming_service" tells us if the movie is on Netflix, Prime or both
-    plt.hist(df[df['on_netflix'] == True]['averageRating'],
+    plt.hist(df[df['on_netflix']]['averageRating'],
              bins=np.arange(0, 10.1, 0.5),
              alpha=0.5,
              density=True,
@@ -127,22 +128,26 @@ matching_df['on_prime'] = matching_df['on_prime'].apply(
 
 # %%
 # create a list of genres with their occurences
-genres = []
+genres = dict()
 for genre in matching_df['genres']:
-    genres.extend(genre)
-genres = pd.Series(genres).value_counts()
-top_5_genres = genres[:5].index
-print(f'Top 5 genres: {top_5_genres.values}')
+    for g in genre:
+        if g in genres:
+            genres[g] += 1
+        else:
+            genres[g] = 1
 
-# compute in how many movies there is at least one of the top 5 genres
-top_5_genres_df = matching_df[matching_df['genres'].apply(
-    lambda x: any(genre in x for genre in top_5_genres))]
-print(f'There is {top_5_genres_df.shape[0]/matching_df.shape[0]*100:.2f}'
-      '% of movies with at least one of the top 5 genres')
+# remove \N
+genres.pop('\\N')
+
+# create a list sorted by occurrences, keeping only the genres
+genres = [genre for genre, _ in sorted(
+    genres.items(), key=lambda item: -item[1])]
+
+genres
 
 
 # %%
-mlb = MultiLabelBinarizer(classes=top_5_genres)
+mlb = MultiLabelBinarizer(classes=genres)
 
 genres_df = pd.DataFrame(mlb.fit_transform(
     matching_df['genres']), columns=mlb.classes_, index=matching_df.index)
@@ -165,40 +170,84 @@ df_prime.drop(columns=['on_netflix', 'on_prime'], inplace=True)
 
 
 # %%
-fig, axs = plt.subplots(3, 3, figsize=(15, 15))
-for i, col in enumerate([x for x in df_netflix.columns if x not in ['averageRating']]):
-    if col in ['release_year', 'runtimeMinutes']:
-        axs[i // 3, i % 3].hist(df_netflix[col], alpha=0.5,
-                                label='Netflix', density=True, bins=20)
-        axs[i // 3, i % 3].hist(df_prime[col], alpha=0.5,
-                                label='Prime', density=True, bins=20)
-        axs[i // 3, i % 3].set_ylabel('density')
-    elif col in ['numVotes']:
+def plot_hist_matching(df_netflix: pd.DataFrame, df_prime: pd.DataFrame):
+    """
+    Plot the histogram of the matching features on Netflix and Prime
 
-        max_x_value = max(df_netflix[col].max(), df_prime[col].max())
-        bins_logspace = np.logspace(0, np.log10(max_x_value), 40)
+    Args:
+        df_netflix (pd.DataFrame): The dataframe containing the data for Netflix
+        df_prime (pd.DataFrame): The dataframe containing the data for Prime
+    """
 
-        axs[i // 3, i % 3].hist(df_netflix[col], alpha=0.5,
-                                label='Netflix', bins=bins_logspace)
-        axs[i // 3, i % 3].hist(df_prime[col], alpha=0.5,
-                                label='Prime', bins=bins_logspace)
-        axs[i // 3, i % 3].set_xscale('log')
-        axs[i // 3, i % 3].set_ylabel('number of movies')
-    else:
-        # binary features, columns charts is the more appropriate
-        width = 0.25
-        x = np.arange(2)
-        axs[i // 3, i % 3].bar(x + width/2, df_netflix[col].value_counts(
-            normalize=True), width=width, label='Netflix', alpha=0.5)
-        axs[i // 3, i % 3].bar(x - width/2, df_prime[col].value_counts(
-            normalize=True), width=width, label='Prime', alpha=0.5)
-        axs[i // 3, i % 3].set_xticks(x, ('0', '1'))
-        axs[i // 3, i % 3].set_ylabel('density')
-    axs[i // 3, i % 3].legend()
-    axs[i // 3, i % 3].set_title(col)
-axs[-1, -1].axis('off')  # hide last subplot as nothing in it
-plt.show()
+    fig, axs = plt.subplots(1, 3, figsize=(15, 5))
+    for i, col in enumerate(['numVotes', 'release_year', 'runtimeMinutes']):
+        if col in ['release_year', 'runtimeMinutes']:
+            axs[i].hist(df_netflix[col], alpha=0.5,
+                        label='Netflix', density=True, bins=20)
+            axs[i].hist(df_prime[col], alpha=0.5,
+                        label='Prime', density=True, bins=20)
+            axs[i].set_ylabel('density')
+        elif col in ['numVotes']:
 
+            max_x_value = max(df_netflix[col].max(), df_prime[col].max())
+            bins_logspace = np.logspace(0, np.log10(max_x_value), 40)
+
+            axs[i].hist(df_netflix[col], alpha=0.5,
+                        label='Netflix', bins=bins_logspace)
+            axs[i].hist(df_prime[col], alpha=0.5,
+                        label='Prime', bins=bins_logspace)
+            axs[i].set_xscale('log')
+            axs[i].set_ylabel('number of movies')
+        else:
+            # should never happen
+            raise ValueError('column not found')
+        axs[i].legend()
+        axs[i].set_title(col)
+    # axs[-1, -1].axis('off')  # hide last subplot as nothing in it
+    plt.show()
+
+
+plot_hist_matching(df_netflix, df_prime)
+
+
+# %%
+def plot_genre_distribution(df_netflix: pd.DataFrame, df_prime: pd.DataFrame):
+    """Plot the genre distribution on Netflix and Prime
+
+    Args:
+        df_netflix (pd.DataFrame): The dataframe containing the data for Netflix
+        df_prime (pd.DataFrame): The dataframe containing the data for Prime
+    """
+
+    # genres should be sorted by occurences
+    max_y_axis = max(df_netflix[genres].sum().max(
+    ) / len(df_netflix), df_prime[genres].sum().max() / len(df_prime))
+    # round up to next multiple of 0.1
+    max_y_axis = math.ceil(max_y_axis * 10) / 10
+
+    fig, ax = plt.subplots(figsize=(15, 5))
+    bar_width = 0.35
+    # genres = ['Horror', 'Action']
+
+    # we add the bar_width to the x axis to have the bars side by side
+    ax.bar(np.arange(len(genres)) + bar_width, df_netflix[genres].sum() / len(df_netflix), bar_width,
+           alpha=0.5, label='Netflix')
+    ax.bar(np.arange(len(genres)), df_prime[genres].sum() / len(df_prime), bar_width,
+           alpha=0.5, label='Prime')
+
+    # set the x axis ticks to the genre names
+    ax.set_xticklabels(genres, rotation=90)
+    ax.set_xticks(np.arange(len(genres)) + bar_width / 2)
+
+    ax.set_xlabel('Genre')
+    ax.set_ylabel('% of Movies')
+    ax.set_title('% of Movies per Genre per Streaming Service')
+    ax.legend()
+
+    plt.show()
+
+
+plot_genre_distribution(df_netflix, df_prime)
 
 # %% [markdown]
 # We'll now compute a propensity score for each observation using a logistic regression.
@@ -216,7 +265,6 @@ matching_df.columns
 model = smf.logit(formula='on_netflix ~ normalized_numVotes + normalized_release_year + '
                   'normalized_runtimeMinutes',
                   data=matching_df)
-# + C(Drama) + C(Comedy) + C(Action) + C(Romance) + C(Thriller)
 
 res = model.fit()
 matching_df['predicted_netflix'] = res.predict(matching_df)
@@ -261,19 +309,28 @@ def get_similarity(propensity_score1, propensity_score2):
 
 # %%
 # only keep 10%
-df_netflix = df_netflix.sample(frac=0.1)
-df_prime = df_prime.sample(frac=0.1)
+df_netflix = df_netflix.sample(frac=0.2)
+df_prime = df_prime.sample(frac=0.2)
 
 
 # %%
+# create a set of genres for each movie, to make comparisons faster (>50x faster)
+df_netflix['genres'] = df_netflix[genres].apply(
+    lambda x: set(x[x == 1].index), axis=1)
+df_prime['genres'] = df_prime[genres].apply(
+    lambda x: set(x[x == 1].index), axis=1)
+
 G = nx.Graph()
 
-# Loop through all the pairs of instances
 for netflix_id, netflix_row in tqdm(df_netflix.iterrows(), total=df_netflix.shape[0]):
     for prime_id, prime_row in df_prime.iterrows():
 
         # (less edges in the graph, faster computation)
         # here we put some conditions to avoid adding edges between instances that are too different
+
+        # if genres are different, skip
+        if netflix_row['genres'] != prime_row['genres']:
+            continue
 
         # Calculate the similarity
         similarity = get_similarity(netflix_row['predicted_netflix'],
@@ -283,12 +340,9 @@ for netflix_id, netflix_row in tqdm(df_netflix.iterrows(), total=df_netflix.shap
         if similarity < 0.5:
             continue
 
-        # if genres are different, skip
-        if any(netflix_row[top_5_genres] != prime_row[top_5_genres]):
-            continue
-
         # Add an edge between the two instances weighted by the similarity between them
         G.add_weighted_edges_from([(netflix_id, prime_id, similarity)])
+
 
 # %%
 print(f'nb of nodes: {G.number_of_nodes()}')
@@ -320,40 +374,9 @@ plot_rating_distribution(balanced_df)
 df_netflix.columns
 
 # %%
-fig, axs = plt.subplots(3, 3, figsize=(15, 15))
-for i, col in enumerate(
-    [x for x in df_netflix.columns if x not in ['averageRating', 'predicted_netflix', 'normalized_numVotes',
-                                                'normalized_release_year', 'normalized_runtimeMinutes']]):
-    if col in ['release_year', 'runtimeMinutes']:
-        axs[i // 3, i % 3].hist(df_netflix[col], alpha=0.5,
-                                label='Netflix', density=True, bins=20)
-        axs[i // 3, i % 3].hist(df_prime[col], alpha=0.5,
-                                label='Prime', density=True, bins=20)
-        axs[i // 3, i % 3].set_ylabel('density')
-    elif col in ['numVotes']:
+plot_hist_matching(df_netflix, df_prime)
 
-        max_x_value = max(df_netflix[col].max(), df_prime[col].max())
-        bins_logspace = np.logspace(0, np.log10(max_x_value), 40)
-
-        axs[i // 3, i % 3].hist(df_netflix[col], alpha=0.5,
-                                label='Netflix', bins=bins_logspace)
-        axs[i // 3, i % 3].hist(df_prime[col], alpha=0.5,
-                                label='Prime', bins=bins_logspace)
-        axs[i // 3, i % 3].set_xscale('log')
-        axs[i // 3, i % 3].set_ylabel('number of movies')
-    else:
-        # binary features, columns charts is the more appropriate
-        width = 0.25
-        x = np.arange(2)
-        axs[i // 3, i % 3].bar(x + width/2, df_netflix[col].value_counts(
-            normalize=True), width=width, label='Netflix', alpha=0.5)
-        axs[i // 3, i % 3].bar(x - width/2, df_prime[col].value_counts(
-            normalize=True), width=width, label='Prime', alpha=0.5)
-        axs[i // 3, i % 3].set_xticks(x, ('0', '1'))
-        axs[i // 3, i % 3].set_ylabel('density')
-    axs[i // 3, i % 3].legend()
-    axs[i // 3, i % 3].set_title(col)
-axs[-1, -1].axis('off')  # hide last subplot as nothing in it
-plt.show()
+# %%
+plot_genre_distribution(df_netflix, df_prime)
 
 # %%
