@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # ---
 # jupyter:
 #   jupytext:
@@ -15,9 +16,16 @@
 # ---
 
 # %%
+from tqdm import tqdm
+import networkx as nx
+from sklearn.metrics import classification_report
+import statsmodels.formula.api as smf
+from sklearn.preprocessing import MultiLabelBinarizer
+import pandas as pd
+import seaborn as sns
+from src import helper
+from scipy.stats import ttest_ind
 from textblob import TextBlob
-import pyLDAvis.gensim_models
-from gensim.models import LdaMulticore
 import matplotlib.pyplot as plt
 import nltk
 import string
@@ -35,6 +43,14 @@ nltk.download('wordnet')
 nltk.download('omw-1.4')
 nltk.download('averaged_perceptron_tagger')
 
+# %% [markdown]
+# ## NLP
+# In this part we will see if we can find a different distribution of topics between movies on Netflix and Prime.
+# We will find the topics using LDA.
+
+# %% [markdown]
+# ### Data Loading and Preparation
+
 # %%
 df = prepare_df()
 
@@ -47,8 +63,6 @@ df_overview_complete = df_overview_complete.reset_index(drop=True)
 df_overview_complete.head()
 
 # %%
-# take a sample of 10% of the movies
-# df_overview = df_overview_complete.sample(frac=0.1, random_state=42)
 df_overview = df_overview_complete.sample(frac=1.0, random_state=42)
 print(f'Number of movies in the sample: {len(df_overview)}')
 # convert the overview column to string
@@ -104,6 +118,21 @@ df_overview['plots_without_stopwords'] = df_overview['plots_without_stopwords'].
 df_overview['plots_without_stopwords'].head()[0:3]
 
 # %%
+# compute the frequency of each word
+all_words = [word for tokens in df_overview['plots_without_stopwords']
+             for word in tokens]
+# create a frequency distribution of each word
+word_dist = nltk.FreqDist(all_words)
+print(f'Number of unique words: {len(word_dist)}')
+# find the words which appears only once
+rare_words = [word for word, count in word_dist.items() if count == 1]
+# remove words appearing only once.
+df_overview['plots_without_stopwords'] = df_overview['plots_without_stopwords'].apply(
+    lambda plot: [word for word in plot if word not in rare_words])
+df_overview['plots_without_stopwords'].head()[0:3]
+
+
+# %%
 before_stop_words_total_number_of_words =\
     len([word for sentence in df_overview['lemmatized_plots']
         for word in sentence])
@@ -124,7 +153,8 @@ print('We kept {}% of the words in the corpus'.format(
 tokens = df_overview['plots_without_stopwords'].tolist()
 bigram_model = Phrases(tokens)
 tokens = list(bigram_model[tokens])
-print(tokens[0:2])
+print('original movie overview:', df_overview['overview'].iloc[0])
+print('processes movie overview:', tokens[0])
 
 
 # %% [markdown]
@@ -132,6 +162,19 @@ print(tokens[0:2])
 
 # %%
 def train_LDA(tokens, n_topics, n_passes, no_below, no_above, n_words=12):
+    """ Train an LDA model given some hyperparameters
+    Args:
+        tokens (list): A list of lists, where each inner list is a list of tokens
+        n_topics (int): The number of topics to fit the model to
+        n_passes (int): The number of passes to run through the data when fitting the model
+        no_below (int): The minimum number of documents a word must be in to be included in the model
+        no_above (float): The maximum proportion of documents a word can be in to be included in the model
+        n_words (int, optional): The number of words to include in the list of topics. Defaults to 12.
+
+    Returns:
+        tuple: A tuple containing the trained LDA model, a list of topics, a list of topic distributions
+         for each document, and the corpus used to fit the model.
+    """
     np.random.seed(42)
     dictionary, corpus = build_dictionnary_and_corpus(
         tokens, no_below=no_below, no_above=no_above)
@@ -156,186 +199,648 @@ n_passes = 10  # almost converged after 5 iterations
 # #### LDA Model
 
 # %%
-# BEST ONE
-no_below = 3
+# not so bad
+no_below = 10
 no_above = 0.5
-n_topics = 11
-n_passes = 10
+n_topics = 12
+n_passes = 120
+n_words = 15
 lda_model, topics, topic_distribution, corpus =\
-    train_LDA(tokens, n_topics, n_passes, no_below, no_above)
-# get the topics
-topics = get_topics(lda_model, num_topics=n_topics, num_words=15)
-# print topics with new line
+    train_LDA(tokens, n_topics, n_passes, no_below, no_above, n_words)
 for i, topic in enumerate(topics):
     print('Topic {}: {}'.format(i, topic))
-# for each movie plot, get its topic distribution (i.e the probability of each topic) in descending order
+# for each movie plot, get its topic distribution (i.e the probability of each topic in descending order)
 topic_distributions = get_topic_distribution(lda_model, corpus)
 print('\n')
-for i in range(0, 10):
+for i in range(1, 3):
     print('Movie plot: {}'.format(df_overview['overview'].iloc[i]))
     print('Topic distribution for the first movie plot: {}'.format(
         topic_distributions[i][0:5]))
     print('\n')
 
+
+# %% [markdown]
+# Based the description of each topic, we could assign the following names to each one:
+# - Topic 0: **Criminal Investigation**
+# - Topic 1: **Coming of Age**
+# - Topic 2: **Espionage**
+# - Topic 3: **Police Action**
+# - Topic 4: **Military Operations**
+# - Topic 5: **Crime and Punishment**
+# - Topic 6: **War and Political Conflict**
+# - Topic 7: **Mystery and Suspense**
+# - Topic 8: **Relationships and Family Dynamics**
+# - Topic 9: **High School and Youth**
+# - Topic 10: **Romance and Love**
+# - Topic 11: **Crime and Gangs**
+
 # %%
-print(len(topic_distributions))
-# get the movies only on netflix
+def get_topic_distributions_for_movies(indices, topic_distributions, n_topics):
+    """
+    Get the topic distributions for a list of movies.
+
+    Args:
+        indices (list): A list of movie indices.
+        topic_distributions (list): A list of topic distributions for all movies.
+        n_topics (int): The number of topics.
+
+    Returns:
+        list: A list of topic distributions for the specified movies.
+    """
+    # get the topic distribution for each movie
+    movie_topic_distributions = [topic_distributions[i] for i in indices]
+
+    # compute the total distribution for all movies
+    total_distribution = [0] * n_topics
+    for topic_dist in movie_topic_distributions:
+        for i in range(n_topics):
+            total_distribution[topic_dist[i][0]] += topic_dist[i][1]
+
+    # divide by the total number of movies
+    total_distribution = [x / len(indices) for x in total_distribution]
+
+    return total_distribution
+
+
+# %%
+df_overview.head()
+
+# %%
+names = ['Criminal Investigation',
+         'Coming of Age',
+         'Espionage',
+         'Police Action',
+         'Military Operations',
+         'Crime and Punishment',
+         'War and Political Conflict',
+         'Mystery and Suspense',
+         'Relationships and Family Dynamics',
+         'High School and Youth',
+         'Romance and Love',
+         'Crime and Gangs']
+
 df_overview_netflix = df_overview[df_overview['on_netflix'] == 1]
-# get the movies only on prime
 df_overview_prime = df_overview[df_overview['on_prime'] == 1]
 
-# get the index of each movie on netflix
+
+# get the topic distributions for Netflix movies
 netflix_index = df_overview_netflix.index.tolist()
-# get the topic distribution for each movie on netflix
-netflix_topic_distribution = [topic_distributions[i] for i in netflix_index]
+netflix_topics_dist = get_topic_distributions_for_movies(
+    netflix_index, topic_distributions, n_topics)
 
-netflix_topics_dist = [0] * n_topics
-for topic_dist in netflix_topic_distribution:
-    for i in range(n_topics):
-        netflix_topics_dist[topic_dist[i][0]] += topic_dist[i][1]
-
-# divide by the total number of movies on netflix
-netflix_topics_dist = [x / len(df_overview_netflix)
-                       for x in netflix_topics_dist]
-print(len(netflix_index))
-
+# get the topic distributions for Prime movies
 prime_index = df_overview_prime.index.tolist()
-# get the topic distribution for each movie on netflix
-prime_topic_distribution = [topic_distributions[i] for i in prime_index]
-print(len(prime_index))
-
-
-prime_topics_dist = [0] * n_topics
-for topic_dist in prime_topic_distribution:
-    for i in range(n_topics):
-        prime_topics_dist[topic_dist[i][0]] += topic_dist[i][1]
-
-# divide by the total number of movies on netflix
-prime_topics_dist = [x / len(df_overview_prime) for x in prime_topics_dist]
-print(prime_topics_dist)
-print(netflix_topics_dist)
+prime_topics_dist = get_topic_distributions_for_movies(
+    prime_index, topic_distributions, n_topics)
 
 
 # plot the two distributions
 plt.figure(figsize=(10, 5))
-plt.bar(range(n_topics), prime_topics_dist, label='Prime', alpha=1)
-plt.bar(range(n_topics), netflix_topics_dist, label='Netflix', alpha=0.5)
+bar_width = 0.4
+plt.bar(np.array(range(n_topics)) + bar_width, netflix_topics_dist,
+        label='Netflix', alpha=0.5, width=bar_width)
+plt.bar(range(n_topics), prime_topics_dist,
+        label='Prime', alpha=0.5, width=bar_width)
+# center tick marks and labels on middle of the two columns
+tick_positions = np.array(range(n_topics)) + bar_width / 2
+plt.xticks(tick_positions, range(n_topics))
+plt.xticks(tick_positions, names, rotation=90)
+plt.xlabel('Topic')
+plt.ylabel('Distribution over topics')
+plt.title('Topic distribution for movies on Netflix and Prime')
 plt.legend()
 plt.show()
 
-print(sum(prime_topics_dist))
-print(sum(netflix_topics_dist))
 
-
-# %%
-# models
-no_below = 5
-no_above = 0.5
-dictionary, corpus = build_dictionnary_and_corpus(
-    tokens, no_below=no_below, no_above=no_above)
-print('Dictionary size: {}'.format(len(dictionary)))
-print('Dictionary first 10 elements: {}'.format(
-    list(dictionary.items())[0:10]))
-print('Corpus size: {}'.format(len(corpus)))
-print('Corpus first 2 elements: {}'.format(corpus[0:2]))
-
-params = {'passes': 10, 'random_state': 42}
-base_models = dict()
-model = LdaMulticore(corpus=corpus, num_topics=4, id2word=dictionary, workers=6,
-                     passes=params['passes'], random_state=params['random_state'])
+# %% [markdown]
+# As we can see, the distribution is almost the same for each platform. This isn't so much surprising as
+# we've seen before that they have roughly the same proportion of movies for most of the categories.
+# Thus using topics in order to determine which streaming platform has the best rating will not be possible. This is
+# because as they have same distribution of topic, we cannot discriminate them on the topics.
+#
+#
+# ### NLP with sentiment analysis
+#
+# We can explore if movies overviews "sentiments" (positive/negative) are different between the two streaming platforms.
+# Polarity is a measure of the sentiment of the overview, with values ranging from -1 (very negative) to
+# 1 (very positive). Subjectivity is a measure of the objectivity of the overview, with values
+# ranging from 0 (completely objective) to 1 (completely subjective).
 
 # %%
-model.show_topics(num_words=5)
-
-# %%
-model.show_topic(1, 20)
-
-# %%
-# plot topics
-data = pyLDAvis.gensim_models.prepare(model, corpus, dictionary)
-pyLDAvis.display(data)
-
-# %%
-# predict the topic distribution for the first movie plot
-model[corpus[0]]
-
-# %%
-temp = df_overview.copy()
-df_prime = df_overview[df_overview['on_prime'] == 1]
-df_netflix = df_overview[df_overview['on_netflix'] == 1]
-# print the number of movies on each platform
-print('Number of movies on Prime: {}'.format(len(df_prime)))
-print('Number of movies on Netflix: {}'.format(len(df_netflix)))
-
-# %%
-
-# Create a TextBlob object for each movie plot
+# compute the 'sentiment' of each movie overview
 netflix_blobs = [TextBlob(' '.join(plot))
-                 for plot in df_netflix['plots_without_stopwords']]
+                 for plot in df_overview_netflix['plots_without_stopwords']]
 prime_blobs = [TextBlob(' '.join(plot))
-               for plot in df_prime['plots_without_stopwords']]
+               for plot in df_overview_prime['plots_without_stopwords']]
 
 # Use the `sentiment` property to get the overall sentiment of each plot
 netflix_sentiments = [blob.sentiment for blob in netflix_blobs]
 prime_sentiments = [blob.sentiment for blob in prime_blobs]
 
-# # plot the distribution of the polarity and subjectivity. Normalized to 1
-# import matplotlib.pyplot as plt
-# plt.figure(figsize=(10, 5))
-# plt.hist([sentiment.polarity for sentiment in prime_sentiments], bins=20, label='Prime', alpha=0.5)
-# plt.hist([sentiment.polarity for sentiment in netflix_sentiments], bins=20, label='Netflix', alpha=0.5)
-# plt.legend()
-# plt.show()
+prime_sentiments_polarity = [
+    sentiment.polarity for sentiment in prime_sentiments]
+prime_sentiments_subjectivity = [
+    sentiment.subjectivity for sentiment in prime_sentiments]
+netflix_sentiments_polarity = [
+    sentiment.polarity for sentiment in netflix_sentiments]
+netflix_sentiments_subjectivity = [
+    sentiment.subjectivity for sentiment in netflix_sentiments]
 
-# import matplotlib.pyplot as plt
-# plt.figure(figsize=(10, 5))
-# plt.hist([sentiment.subjectivity for sentiment in prime_sentiments], bins=20, label='Prime', alpha=0.5)
-# plt.hist([sentiment.subjectivity for sentiment in netflix_sentiments], bins=20, label='Netflix', alpha=0.5)
-# plt.legend()
-# plt.show()
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
 
-# divide each bins by the total number of movies on each platform
-prime_polarity = [0] * 20
-netflix_polarity = [0] * 20
-for sentiment in prime_sentiments:
-    prime_polarity[int((sentiment.polarity+1) * 10) - 1] += 1
-for sentiment in netflix_sentiments:
-    netflix_polarity[int((sentiment.polarity+1) * 10) - 1] += 1
+counts_netflix_polarity, bins, patches = ax1.hist(
+    netflix_sentiments_polarity, bins=20, alpha=0.5, label='Netflix', density=True)
+counts_prime_polarity, bins, patches = ax1.hist(
+    prime_sentiments_polarity, bins=20, alpha=0.5, label='Prime', density=True)
 
-prime_polarity = [x / len(df_prime) for x in prime_polarity]
-netflix_polarity = [x / len(df_netflix) for x in netflix_polarity]
-print(prime_polarity)
-print(netflix_polarity)
-print(sum(prime_polarity))
-print(sum(netflix_polarity))
-# plot prime polarity
-plt.figure(figsize=(10, 5))
-# plot on a range from -5 to 5, with 20 values
-plt.plot(range(-10, 10), prime_polarity, label='Prime')
-plt.plot(range(-10, 10), netflix_polarity, label='Netflix')
-plt.xlabel(xlabel='Polarity')
-plt.legend()
+# compute the mean and median for each platform for the polarity
+ax1.axvline(np.mean(netflix_sentiments_polarity),
+            color='C0', linestyle='dashed', linewidth=1)
+ax1.axvline(np.median(netflix_sentiments_polarity),
+            color='C0', linestyle='dotted', linewidth=1)
+ax1.axvline(np.mean(prime_sentiments_polarity),
+            color='C1', linestyle='dashed', linewidth=1)
+ax1.axvline(np.median(prime_sentiments_polarity),
+            color='C1', linestyle='dotted', linewidth=1)
+
+
+counts_netflix_subjectivity, bins, patches = ax2.hist(
+    netflix_sentiments_subjectivity, bins=20, alpha=0.5, label='Netflix', density=True)
+counts, bins, patches = ax2.hist(
+    prime_sentiments_subjectivity, bins=20, alpha=0.5, label='Prime', density=True)
+
+# compute mean and median for each platform for the subjectivity
+ax2.axvline(np.mean(netflix_sentiments_subjectivity),
+            color='C0', linestyle='dashed', linewidth=1)
+ax2.axvline(np.median(netflix_sentiments_subjectivity),
+            color='C0', linestyle='dotted', linewidth=1)
+ax2.axvline(np.mean(prime_sentiments_subjectivity),
+            color='C1', linestyle='dashed', linewidth=1)
+ax2.axvline(np.median(prime_sentiments_subjectivity),
+            color='C1', linestyle='dotted', linewidth=1)
+
+
+# setup information displayed in the legend
+ax1_legend_elements = [
+    plt.Line2D([0], [0], color='C0', lw=4, label='Netflix'),
+    plt.Line2D([0], [0], color='C1', lw=4, label='Prime'),
+    plt.Line2D([0], [0], color='k', lw=1,
+               linestyle='dashed', label='Mean'),
+    plt.Line2D([0], [0], color='k', lw=1,
+               linestyle='dotted', label='Median')
+]
+ax1.legend(handles=ax1_legend_elements, loc='upper right')
+
+ax2_legend_elements = [
+    plt.Line2D([0], [0], color='C0', lw=4, label='Netflix'),
+    plt.Line2D([0], [0], color='C1', lw=4, label='Prime'),
+    plt.Line2D([0], [0], color='k', lw=1,
+               linestyle='dashed', label='Mean'),
+    plt.Line2D([0], [0], color='k', lw=1,
+               linestyle='dotted', label='Median')
+]
+ax2.legend(handles=ax2_legend_elements, loc='upper right')
+
+ax1.set_title('Polarity Distribution')
+ax1.set_xlabel('Polarity')
+ax1.set_ylabel('Percentage of Movies (divided by 10)')
+ax2.set_title('Subjectivity Distribution')
+ax2.set_xlabel('Subjectivity')
+ax2.set_ylabel('Percentage of Movies (divided by 10)')
 plt.show()
 
-# prime_polarity = [0] * 20
-# netflix_polarity = [0] * 20
-# for sentiment in prime_sentiments:
-#     prime_polarity[int((sentiment.subjectivity+1) * 10) - 1] += 1
-# for sentiment in netflix_sentiments:
-#     netflix_polarity[int((sentiment.subjectivity+1) * 10) - 1] += 1
 
-# prime_polarity = [x / len(df_prime) for x in prime_polarity]
-# netflix_polarity = [x / len(df_netflix) for x in netflix_polarity]
-# print(prime_polarity)
-# print(netflix_polarity)
-# print(sum(prime_polarity))
-# print(sum(netflix_polarity))
-# # plot prime polarity
-# plt.figure(figsize=(10, 5))
-# plt.bar(range(20), prime_polarity, label='Prime')
-# plt.bar(range(20), netflix_polarity, label='Netflix')
-# plt.legend()
-# plt.show()
+# %% [markdown]
+# From these graphs, we see that the polarity is a little bit higher than 0 for both streaming services. It would
+# also seems that Prime have movies with a lower polarity than Netflix, i.e. Prime movies overviews would have a
+# more "negative" sentiment. For subjectivity, we see both distributions have roughly the same distribution. We also see
+# that Prime seems to have more "objective" movies overview than Neflix. Netflix on its side seems to have a little bit
+# more "subjective" overviews.
 
+# %%
+
+# Perform a t-test to compare the means of the polarity distributions
+t_statistic_polarity, p_value_polarity = ttest_ind(
+    prime_sentiments_polarity, netflix_sentiments_polarity)
+t_statistic_subjectivity, p_value_subjectivity = ttest_ind(
+    prime_sentiments_subjectivity, netflix_sentiments_subjectivity)
+
+print('Polarity p-value ', round(p_value_polarity, 5))
+print('Subjectivity p-value', round(p_value_subjectivity, 4))
+
+
+# %% [markdown]
+# As the p-value is less than 0.05, it suggests that the difference between the means of the two distributions is
+# statistically significant, and we can reject the null hypothesis that the two distributions are similar.
+# We can see that this analysis is true for both polarity and subjectivity.
+#
+# We will then see in the following of this project, if polarity and subjectivity of overviews can help to determine
+# which streaming service is the best.
+
+# %%
+# print the first element of df_overview
+print(df_overview['overview'].iloc[0])
+print(df_overview['on_prime'].iloc[0])
+print(df_overview['on_netflix'].iloc[0])
+print(netflix_sentiments[0])
+print(prime_sentiments[0])
+
+
+# %%
+# add the prime_sentiments_polarity and netflix_sentiments_polarity to the dataframe
+df_overview_prime['sentiments_polarity'] = prime_sentiments_polarity
+df_overview_netflix['sentiments_polarity'] = netflix_sentiments_polarity
+# add the prime_sentiments_subjectivity and netflix_sentiments_subjectivity to the dataframe
+df_overview_prime['sentiments_subjectivity'] = prime_sentiments_subjectivity
+df_overview_netflix['sentiments_subjectivity'] = netflix_sentiments_subjectivity
+# for each dataframe, remove the tokenized plots, plots_with_POS_tag, lemmatized_plots, plots_without_stopwords
+# columns
+df_overview_prime = df_overview_prime.drop(
+    ['tokenized_plots', 'plots_with_POS_tag', 'lemmatized_plots', 'plots_without_stopwords'], axis=1)
+df_overview_netflix = df_overview_netflix.drop(
+    ['tokenized_plots', 'plots_with_POS_tag', 'lemmatized_plots', 'plots_without_stopwords'], axis=1)
+# concatenate the two dataframes
+df_overview_bis = pd.concat([df_overview_prime, df_overview_netflix])
+df_overview_bis.head()
+
+# %% [markdown]
+# # Observational Studies
+
+# %%
+df = helper.prepare_df()
+df['genres'] = df['genres'].apply(lambda x: x.split(','))
+df.reset_index(drop=True, inplace=True)
+# merge the original dataframe and the one containing the sentiment analysis
+merged_df = df.merge(df_overview_bis, left_index=True,
+                     right_index=True, suffixes=('', '_df2'))
+# Get the list of common columns between the two dataframes
+common_columns = list(set(df.columns) & set(df_overview_bis.columns))
+
+# Keep only the column from the first dataframe for each common column
+for col in common_columns:
+    merged_df[col] = merged_df[col]
+    merged_df.drop(columns=[col + '_df2'], inplace=True)
+
+merged_df = merged_df[~merged_df.index.duplicated(keep='first')]
+df = merged_df.copy()
+print(len(df))
+
+
+# %% [markdown]
+# # Naive analysis
+# In this first part, we will try to understand the data by looking at the distribution of the different variables
+# without doing some matching or any special preprocessing.
+#
+
+# %%
+df['streaming_service'] = ['both' if netflix and prime else 'netflix' if netflix
+                           else 'prime' for netflix, prime in zip(df['on_netflix'], df['on_prime'])]
+
+
+# %%
+def plot_rating_distribution(df: pd.DataFrame):
+    """
+    Plot the rating distribution on Netflix and Prime
+
+    Args:
+        df (pd.DataFrame): The dataframe containing the data,
+            must contain the columns 'on_netflix', 'on_prime' and 'averageRating'
+    """
+    # if needed transform binary 'on_netflix' and 'on_prime' to boolean
+    df['on_netflix'] = df['on_netflix'].astype(bool)
+    df['on_prime'] = df['on_prime'].astype(bool)
+
+    # plot the movie rating distribution on Netflix and Prime
+    # rating is in column "averageRating"
+    # a col "streaming_service" tells us if the movie is on Netflix, Prime or both
+    plt.hist(df[df['on_netflix']]['averageRating'],
+             bins=np.arange(0, 10.1, 0.5),
+             alpha=0.5,
+             density=True,
+             color='C0',
+             label='Netflix')
+    plt.axvline(df[df['on_netflix']]['averageRating'].mean(),
+                color='C0', linestyle='dashed', linewidth=1)
+    plt.axvline(df[df['on_netflix']]['averageRating'].median(),
+                color='C0', linestyle='dotted', linewidth=1)
+
+    plt.hist(df[df['on_prime']]['averageRating'],
+             bins=np.arange(0, 10.1, 0.5),
+             alpha=0.5,
+             density=True,
+             color='C1',
+             label='Prime')
+    plt.axvline(df[df['on_prime']]['averageRating'].mean(),
+                color='C1', linestyle='dashed', linewidth=1)
+    plt.axvline(df[df['on_prime']]['averageRating'].median(),
+                color='C1', linestyle='dotted', linewidth=1)
+
+    # add legend for hist and mean/median
+    legend_elements = [
+        plt.Line2D([0], [0], color='C0', lw=4, label='Netflix'),
+        plt.Line2D([0], [0], color='C1', lw=4, label='Prime'),
+        plt.Line2D([0], [0], color='k', lw=1,
+                   linestyle='dashed', label='Mean'),
+        plt.Line2D([0], [0], color='k', lw=1,
+                   linestyle='dotted', label='Median')
+    ]
+    plt.legend(handles=legend_elements, loc='upper right')
+
+    plt.title('Movie rating distribution on Netflix and Prime')
+    plt.xlabel('Average rating')
+    plt.ylabel('Density')
+    plt.show()
+
+
+plot_rating_distribution(df)
+
+
+# %% [markdown]
+# From this first graph, it seems that you are more likely able to find an high rated movie on Netlfix
+# than on Amazon Prime.
+
+# %% [markdown]
+# # Matching based on propensity score
+# First we'll create an adapted dataframe with only the variables we want to use for the matching.
+#
+
+# %%
+df.columns
+
+# %%
+matching_df = df[['averageRating', 'numVotes', 'release_year',
+                  'runtimeMinutes', 'genres', 'on_netflix', 'on_prime', 'sentiments_polarity']].copy()
+# we only keep numbers or values that we'll be able to transform to binary
+
+matching_df['on_netflix'] = matching_df['on_netflix'].apply(
+    lambda x: 1 if x else 0)
+matching_df['on_prime'] = matching_df['on_prime'].apply(
+    lambda x: 1 if x else 0)
+
+# %%
+# create a list of genres with their occurences
+genres = []
+for genre in matching_df['genres']:
+    genres.extend(genre)
+genres = pd.Series(genres).value_counts()
+top_5_genres = genres[:5].index
+print(f'Top 5 genres: {top_5_genres.values}')
+
+# compute in how many movies there is at least one of the top 5 genres
+top_5_genres_df = matching_df[matching_df['genres'].apply(
+    lambda x: any(genre in x for genre in top_5_genres))]
+print(f'There is {top_5_genres_df.shape[0]/matching_df.shape[0]*100:.2f}'
+      '% of movies with at least one of the top 5 genres')
+
+
+# %%
+mlb = MultiLabelBinarizer(classes=top_5_genres)
+
+genres_df = pd.DataFrame(mlb.fit_transform(
+    matching_df['genres']), columns=mlb.classes_, index=matching_df.index)
+matching_df = pd.concat([matching_df, genres_df], axis=1)
+matching_df.drop(columns=['genres'], inplace=True)
+matching_df.head()
+
+# %%
+# pairplot but only with averageRating
+sns.pairplot(df[['averageRating', 'numVotes', 'directors',
+                 'release_year', 'runtimeMinutes', 'streaming_service', 'sentiments_polarity']],
+             hue='streaming_service')
+plt.show()
+
+# %%
+df_netflix = matching_df[matching_df['on_netflix'] == 1].copy()
+df_netflix.drop(columns=['on_netflix', 'on_prime'], inplace=True)
+
+df_prime = matching_df[matching_df['on_prime'] == 1].copy()
+df_prime.drop(columns=['on_netflix', 'on_prime'], inplace=True)
+
+
+# %%
+fig, axs = plt.subplots(3, 3, figsize=(15, 15))
+for i, col in enumerate([x for x in df_netflix.columns if x not in ['averageRating']]):
+    if col in ['release_year', 'runtimeMinutes']:
+        axs[i // 3, i % 3].hist(df_netflix[col], alpha=0.5,
+                                label='Netflix', density=True, bins=20)
+        axs[i // 3, i % 3].hist(df_prime[col], alpha=0.5,
+                                label='Prime', density=True, bins=20)
+        axs[i // 3, i % 3].set_ylabel('density')
+    elif col in ['numVotes']:
+
+        max_x_value = max(df_netflix[col].max(), df_prime[col].max())
+        bins_logspace = np.logspace(0, np.log10(max_x_value), 40)
+
+        axs[i // 3, i % 3].hist(df_netflix[col], alpha=0.5,
+                                label='Netflix', bins=bins_logspace)
+        axs[i // 3, i % 3].hist(df_prime[col], alpha=0.5,
+                                label='Prime', bins=bins_logspace)
+        axs[i // 3, i % 3].set_xscale('log')
+        axs[i // 3, i % 3].set_ylabel('number of movies')
+    elif col in ['sentiments_polarity']:
+        # TODO why density is multiplied by 10?
+        axs[i // 3, i % 3].hist(df_netflix[col], alpha=0.5,
+                                bins=20, density=True, label='Netflix')
+        axs[i // 3, i % 3].hist(df_prime[col], alpha=0.5,
+                                bins=20, density=True, label='Prime')
+        axs[i // 3, i % 3].set_ylabel('density (multiplied by 10)')
+    else:
+        # binary features, columns charts is the more appropriate
+        width = 0.25
+        x = np.arange(2)
+        axs[i // 3, i % 3].bar(x + width/2, df_netflix[col].value_counts(
+            normalize=True), width=width, label='Netflix', alpha=0.5)
+        axs[i // 3, i % 3].bar(x - width/2, df_prime[col].value_counts(
+            normalize=True), width=width, label='Prime', alpha=0.5)
+        axs[i // 3, i % 3].set_xticks(x, ('0', '1'))
+        axs[i // 3, i % 3].set_ylabel('density')
+    axs[i // 3, i % 3].legend()
+    axs[i // 3, i % 3].set_title(col)
+axs[-1, -1].axis('off')  # hide last subplot as nothing in it
+plt.show()
+
+
+# %% [markdown]
+# We'll now compute a propensity score for each observation using a logistic regression.
+
+# %%
+# TODO do we normalize the sentiment ? (it's already between -1 and 1)
+features_to_normalize = ['numVotes', 'release_year', 'runtimeMinutes']
+for feature in features_to_normalize:
+    matching_df['normalized_' + feature] = (
+        matching_df[feature] - matching_df[feature].mean()) / matching_df[feature].std()
+
+# %%
+matching_df.columns
+
+# %%
+model = smf.logit(formula='on_netflix ~ normalized_numVotes + normalized_release_year + '
+                  'normalized_runtimeMinutes + sentiments_polarity',
+                  data=matching_df)
+# + C(Drama) + C(Comedy) + C(Action) + C(Romance) + C(Thriller)
+
+res = model.fit()
+matching_df['predicted_netflix'] = res.predict(matching_df)
+
+print(res.summary())
+
+
+# %%
+# generate a report on the classification
+print(classification_report(matching_df['on_netflix'], matching_df['predicted_netflix'].apply(
+    lambda x: 1 if x > 0.5 else 0)))
+
+# %%
+# update df with the predicted probability of being on netflix
+# for this part we keep only movies that are either only on netflix or only on prime
+mask_netflix_only = (matching_df['on_netflix'] == 1) & (
+    matching_df['on_prime'] == 0)
+mask_prime_only = (matching_df['on_netflix'] == 0) & (
+    matching_df['on_prime'] == 1)
+
+df_netflix = matching_df[mask_netflix_only].copy()
+df_netflix.drop(columns=['on_netflix', 'on_prime'], inplace=True)
+
+df_prime = matching_df[mask_prime_only].copy()
+df_prime.drop(columns=['on_netflix', 'on_prime'], inplace=True)
+
+
+# %%
+def get_similarity(propensity_score1, propensity_score2):
+    """Calculate similarity with given propensity scores
+
+    Args:
+        propensity_score1 (float): propensity score of first movie
+        propensity_score2 (float): propensity score of second movie
+
+    Returns:
+        float: similarity between 0 and 1
+    """
+    return 1-np.abs(propensity_score1-propensity_score2)
+
+
+# %%
+# only keep 10%
+df_netflix = df_netflix.sample(frac=0.1)
+df_prime = df_prime.sample(frac=0.1)
+
+
+# %%
+G = nx.Graph()
+
+# Loop through all the pairs of instances
+for netflix_id, netflix_row in tqdm(df_netflix.iterrows(), total=df_netflix.shape[0]):
+    for prime_id, prime_row in df_prime.iterrows():
+
+        # (less edges in the graph, faster computation)
+        # here we put some conditions to avoid adding edges between instances that are too different
+
+        # Calculate the similarity
+        similarity = get_similarity(netflix_row['predicted_netflix'],
+                                    prime_row['predicted_netflix'])
+
+        # we want a similarity of at least 0.5
+        if similarity < 0.5:
+            continue
+
+        # if genres are different, skip
+        if any(netflix_row[top_5_genres] != prime_row[top_5_genres]):
+            continue
+
+        # Add an edge between the two instances weighted by the similarity between them
+        G.add_weighted_edges_from([(netflix_id, prime_id, similarity)])
+
+# %%
+print(f'nb of nodes: {G.number_of_nodes()}')
+print(f'nb of edges: {G.number_of_edges()}')
+
+# %%
+# can be really long
+matching = nx.max_weight_matching(G)
+
+# %%
+matched = [elem for tuple_elem in list(matching) for elem in tuple_elem]
+
+# %%
+balanced_df = matching_df.loc[matched]
+
+df_netflix = balanced_df[balanced_df['on_netflix'] == 1].copy()
+df_netflix.drop(columns=['on_netflix', 'on_prime'], inplace=True)
+
+df_prime = balanced_df[balanced_df['on_prime'] == 1].copy()
+df_prime.drop(columns=['on_netflix', 'on_prime'], inplace=True)
+
+# %%
+len(balanced_df)
+
+# %%
+plot_rating_distribution(balanced_df)
+
+# %%
+df_netflix.columns
+
+# %%
+fig, axs = plt.subplots(3, 3, figsize=(15, 15))
+for i, col in enumerate(
+    [x for x in df_netflix.columns if x not in ['averageRating', 'predicted_netflix', 'normalized_numVotes',
+                                                'normalized_release_year', 'normalized_runtimeMinutes']]):
+    if col in ['release_year', 'runtimeMinutes']:
+        axs[i // 3, i % 3].hist(df_netflix[col], alpha=0.5,
+                                label='Netflix', density=True, bins=20)
+        axs[i // 3, i % 3].hist(df_prime[col], alpha=0.5,
+                                label='Prime', density=True, bins=20)
+        axs[i // 3, i % 3].set_ylabel('density')
+    elif col in ['numVotes']:
+        max_x_value = max(df_netflix[col].max(), df_prime[col].max())
+        bins_logspace = np.logspace(0, np.log10(max_x_value), 40)
+
+        axs[i // 3, i % 3].hist(df_netflix[col], alpha=0.5,
+                                label='Netflix', bins=bins_logspace)
+        axs[i // 3, i % 3].hist(df_prime[col], alpha=0.5,
+                                label='Prime', bins=bins_logspace)
+        axs[i // 3, i % 3].set_xscale('log')
+        axs[i // 3, i % 3].set_ylabel('number of movies')
+    elif col in ['sentiments_polarity']:
+        axs[i // 3, i % 3].hist(df_netflix[col], alpha=0.5,
+                                label='Netflix', density=True, bins=20)
+        axs[i // 3, i % 3].hist(df_prime[col], alpha=0.5,
+                                label='Prime', density=True, bins=20)
+        axs[i // 3, i % 3].set_ylabel('density')
+    else:
+        # binary features, columns charts is the more appropriate
+        width = 0.25
+        x = np.arange(2)
+        axs[i // 3, i % 3].bar(x + width/2, df_netflix[col].value_counts(
+            normalize=True), width=width, label='Netflix', alpha=0.5)
+        axs[i // 3, i % 3].bar(x - width/2, df_prime[col].value_counts(
+            normalize=True), width=width, label='Prime', alpha=0.5)
+        axs[i // 3, i % 3].set_xticks(x, ('0', '1'))
+        axs[i // 3, i % 3].set_ylabel('density')
+    axs[i // 3, i % 3].legend()
+    axs[i // 3, i % 3].set_title(col)
+axs[-1, -1].axis('off')  # hide last subplot as nothing in it
+plt.show()
+
+# %% [markdown]
+# #### Analyzing the results of the matching
+#
+# First we see that the 5 categories we matched have the exact same distribution over netflix and prime. This was
+# expected as the matching on categories was perfect. Now for the other features we can see from the plots that
+# the distributions of netflix and prime seems closer than before matching. We can now verify with some T-tests.
+
+# %%
+for col in ['numVotes', 'runtimeMinutes', 'sentiments_polarity', 'release_year']:
+    t_statistic_polarity, p_value_polarity = ttest_ind(
+        df_prime[col], df_netflix[col], equal_var=False)
+    print(f'{col}: t-statistic: {round(t_statistic_polarity, 2)}, p-value: {round(p_value_polarity,2)}')
+
+
+# %% [markdown]
+# We see that for runtime and sentiments polarity, the p-value is greater than some threshold of 0.05. Thus we
+# cannot reject the null hypothesis that the two distributions are equals. For numVotes and release_year the p-value
+# is still lower than the threshold. We can reject the null hypothesis, so the two distributions are still unequal.
+# This can be expected as we try to match on a lots of parameters, and we don't make a perfect matching, so it's still
+# normal to observe some drift between the netflix and prime distributions. We can however see that even if
+# distributions are not equals for numVotes and realease_year, they seems more similar than prior matching.
 
 # %%
