@@ -585,7 +585,8 @@ df.columns
 
 # %%
 matching_df = df[['averageRating', 'numVotes', 'release_year',
-                  'runtimeMinutes', 'genres', 'on_netflix', 'on_prime', 'sentiments_polarity']].copy()
+                  'runtimeMinutes', 'genres', 'on_netflix', 'on_prime',
+                  'sentiments_polarity', 'production_countries']].copy()
 # we only keep numbers or values that we'll be able to transform to binary
 
 matching_df['on_netflix'] = matching_df['on_netflix'].apply(
@@ -636,8 +637,9 @@ df_netflix.drop(columns=['on_netflix', 'on_prime'], inplace=True)
 df_prime = matching_df[matching_df['on_prime'] == 1].copy()
 df_prime.drop(columns=['on_netflix', 'on_prime'], inplace=True)
 
-
 # %%
+
+
 def plot_hist_matching(df_netflix: pd.DataFrame, df_prime: pd.DataFrame):
     """
     Plot the histogram of the matching features on Netflix and Prime
@@ -647,9 +649,9 @@ def plot_hist_matching(df_netflix: pd.DataFrame, df_prime: pd.DataFrame):
         df_prime (pd.DataFrame): The dataframe containing the data for Prime
     """
 
-    fig, axs = plt.subplots(2, 2, figsize=(15, 5))
+    fig, axs = plt.subplots(2, 2, figsize=(15, 10))
     for i, col in enumerate(['numVotes', 'release_year', 'runtimeMinutes', 'sentiments_polarity']):
-        if col in ['release_year', 'runtimeMinutes']:
+        if col in ['release_year', 'runtimeMinutes', 'sentiments_polarity']:
             axs[i//2, i % 2].hist(df_netflix[col], alpha=0.5,
                                   label='Netflix', density=True, bins=20)
             axs[i//2, i % 2].hist(df_prime[col], alpha=0.5,
@@ -665,19 +667,11 @@ def plot_hist_matching(df_netflix: pd.DataFrame, df_prime: pd.DataFrame):
                                   label='Prime', bins=bins_logspace)
             axs[i//2, i % 2].set_xscale('log')
             axs[i//2, i % 2].set_ylabel('number of movies')
-        elif col in ['sentiments_polarity']:
-            axs[i//2, i % 2].hist(df_netflix[col], alpha=0.5,
-                                  label='Netflix', density=True, bins=20)
-            axs[i//2, i % 2].hist(df_prime[col], alpha=0.5,
-                                  label='Prime', density=True, bins=20)
-            axs[i//2, i % 2].set_ylabel('density')
         else:
             # should never happen
             raise ValueError('column not found')
         axs[i//2, i % 2].legend()
         axs[i//2, i % 2].set_title(col)
-    # axs[-1, -1].axis('off')  # hide last subplot as nothing in it
-    # increase space between subplots
     fig.tight_layout()
     plt.show()
 
@@ -794,7 +788,7 @@ def get_similarity(propensity_score1, propensity_score2):
 
 
 # %%
-# only keep 10%
+# only keep 20%
 df_netflix = df_netflix.sample(frac=0.2)
 df_prime = df_prime.sample(frac=0.2)
 
@@ -875,6 +869,101 @@ for col in ['numVotes', 'runtimeMinutes', 'sentiments_polarity', 'release_year']
 
 # %%
 plot_genre_distribution(df_netflix, df_prime)
+
+# %%
+plot_rating_distribution(balanced_df)
+
+# %%
+t_statistic_rating, p_value_rating = ttest_ind(
+    balanced_df[balanced_df['on_prime']
+                ]['averageRating'], balanced_df[balanced_df['on_netflix']]['averageRating'],
+    equal_var=False)
+print(
+    f'averageRating: t-statistic: {round(t_statistic_rating, 2)}, p-value: {round(p_value_rating,2)}')
+
+# %% [markdown]
+# We now redo the same analysis as before, but this time we'll do a perfect matching also on the production country.
+
+# %%
+netflix_row
+
+# %%
+mask_netflix_only = (matching_df['on_netflix'] == 1) & (
+    matching_df['on_prime'] == 0)
+mask_prime_only = (matching_df['on_netflix'] == 0) & (
+    matching_df['on_prime'] == 1)
+
+df_netflix = matching_df[mask_netflix_only].copy()
+df_netflix.drop(columns=['on_netflix', 'on_prime'], inplace=True)
+
+df_prime = matching_df[mask_prime_only].copy()
+df_prime.drop(columns=['on_netflix', 'on_prime'], inplace=True)
+
+# only keep 20%
+df_netflix = df_netflix.sample(frac=0.2)
+df_prime = df_prime.sample(frac=0.2)
+
+# create a set of genres for each movie, to make comparisons faster (>50x faster)
+df_netflix['genres'] = df_netflix[genres].apply(
+    lambda x: set(x[x == 1].index), axis=1)
+df_prime['genres'] = df_prime[genres].apply(
+    lambda x: set(x[x == 1].index), axis=1)
+
+# add production country as requirement for the matching
+G = nx.Graph()
+
+for netflix_id, netflix_row in tqdm(df_netflix.iterrows(), total=df_netflix.shape[0]):
+    for prime_id, prime_row in df_prime.iterrows():
+
+        # (less edges in the graph, faster computation)
+        # here we put some conditions to avoid adding edges between instances that are too different
+
+        # if production country is different, skip
+        if netflix_row['production_countries'] != prime_row['production_countries']:
+            continue
+
+        # if genres are different, skip
+        if netflix_row['genres'] != prime_row['genres']:
+            continue
+
+        # Calculate the similarity
+        similarity = get_similarity(netflix_row['predicted_netflix'],
+                                    prime_row['predicted_netflix'])
+
+        # we want a similarity of at least 0.5
+        if similarity < 0.5:
+            continue
+
+        # Add an edge between the two instances weighted by the similarity between them
+        G.add_weighted_edges_from([(netflix_id, prime_id, similarity)])
+
+# %%
+print(f'nb of nodes: {G.number_of_nodes()}')
+print(f'nb of edges: {G.number_of_edges()}')
+
+# %%
+# can be really long
+matching = nx.max_weight_matching(G)
+
+# %%
+matched = [elem for tuple_elem in list(matching) for elem in tuple_elem]
+
+balanced_df = matching_df.loc[matched]
+
+df_netflix = balanced_df[balanced_df['on_netflix'] == 1].copy()
+df_netflix.drop(columns=['on_netflix', 'on_prime'], inplace=True)
+
+df_prime = balanced_df[balanced_df['on_prime'] == 1].copy()
+df_prime.drop(columns=['on_netflix', 'on_prime'], inplace=True)
+
+len(balanced_df)
+
+# %%
+plot_hist_matching(df_netflix, df_prime)
+for col in ['numVotes', 'runtimeMinutes', 'sentiments_polarity', 'release_year']:
+    t_statistic_polarity, p_value_polarity = ttest_ind(
+        df_prime[col], df_netflix[col], equal_var=False)
+    print(f'{col}: t-statistic: {round(t_statistic_polarity, 2)}, p-value: {round(p_value_polarity,2)}')
 
 # %%
 plot_rating_distribution(balanced_df)
