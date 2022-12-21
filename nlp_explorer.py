@@ -772,6 +772,19 @@ df_prime.drop(columns=['on_netflix', 'on_prime'], inplace=True)
 
 
 # %%
+def compute_log_bins(df, num_bins, min_val, max_val):
+    # Compute the logarithmically spaced bins
+    log_bins = np.logspace(np.log10(min_val), np.log10(max_val), num_bins+1)
+
+    # Compute the position, height, and width arrays for the bars
+    position_array = (log_bins[:-1] + log_bins[1:]) / 2
+    height_array = df.groupby(np.digitize(df, log_bins)).count().values
+    width_array = log_bins[1:] - log_bins[:-1]
+
+    return position_array, height_array, width_array
+
+
+# %%
 
 def plot_hist_matching(df_netflix: pd.DataFrame, df_prime: pd.DataFrame, n: int):
     """
@@ -816,34 +829,37 @@ def plot_hist_matching(df_netflix: pd.DataFrame, df_prime: pd.DataFrame, n: int)
                 fig.add_trace(histogram, row=i//2+1, col=i % 2+1)
 
         elif col in ['numVotes']:
-            # max_x_value = max(df_netflix[col].max(), df_prime[col].max())
-            # bins_logspace = np.logspace(0, np.log10(max_x_value), 40)
+            min_val = min(df_netflix[col].min(), df_prime[col].min())
+            max_val = max(df_netflix[col].max(), df_prime[col].max())
 
-            histograms = [
-                go.Histogram(
-                    x=df_netflix[col],
+            bars_positions_netflix, bins_height_netflix, bins_width_netflix = compute_log_bins(
+                df_netflix[col], 40, min_val, max_val)
+            bars_positions_prime, bins_height_prime, bins_width_prime = compute_log_bins(
+                df_prime[col], 40, min_val, max_val)
+
+            bars = [
+                go.Bar(
+                    x=bars_positions_netflix,
+                    y=bins_height_netflix,
                     name='Netflix',
-                    histnorm='probability',
                     legendgroup='Netflix',
                     marker_color=netflix_color,
-                    xaxis='x2',
-                    xbins=dict(start=0, end=10, size=0.1),
-                    # transforms=[dict(type='log')]
+                    width=bins_width_netflix,
                 ),
-
-                go.Histogram(
-                    x=df_prime[col],
-                    name='Prime',
-                    histnorm='probability',
+                go.Bar(
+                    x=bars_positions_prime,
+                    y=bins_height_prime,
+                    name='Netflix',
                     legendgroup='Netflix',
                     marker_color=prime_color,
-                ),
+                    width=bins_width_prime,
+                )
             ]
 
-            for histogram in histograms:
-                fig.add_trace(histogram, row=i//2+1, col=i % 2+1)
+            for bar in bars:
+                fig.add_trace(bar, row=i//2+1, col=i % 2+1)
 
-            # fig.update_xaxes(type='log', row=i//2+1, col=i % 2+1)
+            fig.update_xaxes(type='log', row=i//2+1, col=i % 2+1)
         else:
             # should never happen
             raise ValueError('column not found')
