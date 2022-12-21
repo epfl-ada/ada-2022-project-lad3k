@@ -5,14 +5,15 @@
 #     custom_cell_magics: kql
 #     text_representation:
 #       extension: .py
-#       format_name: light
-#       format_version: '1.5'
-#       jupytext_version: 1.14.1
+#       format_name: percent
+#       format_version: '1.3'
+#       jupytext_version: 1.11.2
 #   kernelspec:
 #     display_name: ada_project
 #     language: python
 #     name: python3
 # ---
+# %%
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -22,20 +23,26 @@ from scipy.stats import bootstrap
 from scipy.stats import ttest_ind
 
 from src.helper import prepare_df
+# %%
 
+# %%
 df = prepare_df()
 df.head()
 
+# %% [markdown]
 # As of April 2022, there are 4901 movies on netflix, we have 2915 movies in the dataset thus we can estimate
 # that we are capturing about 60% of the movies on the streaming service.
 # For Prime there are 6985 movies and we have 6981 so we are capturing about 99.9%.
 #
 # *[source](https://blog.reelgood.com/which-streaming-service-offers-the-best-bang-for-your-buck)*
 
+# %% [markdown]
 # ![movies](images/movies_ss.png)
 
+# %% [markdown]
 # Can also check for quality movies and high quality movies the fraction of movies that are in the dataset.
 
+# %% [markdown]
 # ### Movies on Netflix and Prime (US)
 # - Plot the genre distribution of movies on Netflix and Prime
 # - Plot the production companies
@@ -47,22 +54,28 @@ df.head()
 #
 
 
+# %%
 df['streaming_service'] = ['both' if netflix and prime else 'netflix' if netflix
                            else 'prime' for netflix, prime in zip(df['on_netflix'], df['on_prime'])]
 
+# %%
 df.shape
 
+# %%
 # get dataframe with streaminung service = both
 df_both = df[df['streaming_service'] == 'both']
 df_both.shape
 
+# %% [markdown]
 # >It's very rare to find a movie that's on both platforms
 
+# %%
 # get movies on netflix and prime
 netflix_movies = df[df['on_netflix']]
 prime_movies = df[df['on_prime']]
 
 
+# %%
 # get unique genres function
 def get_unique_genres(df):
     genres = set(df['genres'].apply(lambda x: x.split(',')).sum())
@@ -70,7 +83,7 @@ def get_unique_genres(df):
     return genres
 
 
-# +
+# %%
 netflix_genres = get_unique_genres(netflix_movies)
 movies_genre = {}
 for genre in netflix_genres:
@@ -114,7 +127,7 @@ plt.ylabel('Normalized Frequency')
 plt.show()
 
 
-# +
+# %%
 
 categories = ['processing cost', 'mechanical properties', 'chemical stability',
               'thermal stability', 'device integration']
@@ -124,14 +137,14 @@ fig = go.Figure()
 
 fig.add_trace(go.Scatterpolar(
     r=both_genre['nb_movies_netflix'],
-    theta=both_genre['index'],
+    theta=both_genre.index,
     fill='toself',
     name='Netflix',
 
 ))
 fig.add_trace(go.Scatterpolar(
     r=both_genre['nb_movies_prime'],
-    theta=both_genre['index'],
+    theta=both_genre.index,
     fill='toself',
     name='Prime',
 ))
@@ -161,8 +174,7 @@ fig.update_layout(
 fig.show()
 
 
-# -
-
+# %%
 def plot_distribution(df: pd.DataFrame, column: str):
     """
     Plot the distribution on Netflix and Prime
@@ -381,6 +393,7 @@ def plot_distribution(df: pd.DataFrame, column: str):
         plt.show()
 
 
+# %%
 plot_distribution(df, 'averageRating')
 plot_distribution(df, 'runtimeMinutes')
 plot_distribution(df, 'release_year')
@@ -388,49 +401,57 @@ plot_distribution(df, 'revenue')
 plot_distribution(df, 'numVotes')
 
 
+# %%
 # compare p value of average rating of movies on netflix and prime
 ttest_ind(netflix_movies['averageRating'], prime_movies['averageRating'],
           equal_var=False, alternative='greater')
 
+# %% [markdown]
 # > The pvalue is smaller than 1%. We can reject the null hypothesis of equal means of average ratings of movies on
 # Netflix and Prime. We can even confirm that the mean of the average rating of movies on Netflix is greater than the
 # mean of the avergae rating movies on Prime. Movies on Netfliy are generally higher rated than movies on Prime.
 
-# +
+# %%
 # only movies with runtime > 0
 netflix_movies_runtime = netflix_movies[netflix_movies['runtimeMinutes'] > 0]
 prime_movies_runtime = prime_movies[prime_movies['runtimeMinutes'] > 0]
 
 ttest_ind(netflix_movies_runtime['runtimeMinutes'], prime_movies_runtime['runtimeMinutes'], equal_var=False,
           alternative='greater')
-# -
 
+# %% [markdown]
 # > The pvalue is smaller than 1%. We can reject the null hypothesis of equal means of running times of movies on
 # Netflix and Prime. We can even confirm that the mean of the running times of movies on Netflix is greater than the
 # mean of the running times of movies on Prime. Movies on Netfliy are generally longer than movies on Prime.
 
+# %%
 ttest_ind(netflix_movies['release_year'], prime_movies['release_year'],
           equal_var=False, alternative='greater')
 
+# %% [markdown]
 # > The pvalue is smaller than 1%. We can reject the null hypothesis of equal means of release years of movies on
 # Netflix and Prime. We can even confirm that the mean of release years of movies on Netflix is greater than the mean of
 # release years of movies on Prime. Thus movies are generally more recent than movies on prime.
 
+# %%
 ttest_ind(netflix_movies['revenue'],
           prime_movies['revenue'], alternative='greater')
 
+# %% [markdown]
 # > The pvalue is smaller than 1%. We can reject the null hypothesis of equal means of revenues movies on Netflix and
 # Prime. We can even confirm that the mean of the revenues of movies on Netflix is greater than the mean of revenues of
 # movies on Prime.
 
+# %%
 ttest_ind(netflix_movies['numVotes'],
           prime_movies['numVotes'], alternative='greater')
 
+# %% [markdown]
 # > The pvalue is smaller than 1%. We can reject the null hypothesis of equal means of number of votes for movies on
 # Netflix and Prime. We can even confirm that the mean of the number of votes of movies on Netflix is greater than the
 # mean of revenues of movies on Prime.
 
-# +
+# %%
 prod_countrie_netflix = netflix_movies['production_countries'].apply(lambda x: x.replace('[', '').replace(
     ']', '').replace('"', '').replace(' ', '').replace("'", '').split(',')).sum()
 prod_countrie_netflix = pd.Series(
@@ -449,17 +470,17 @@ df_prod_countrie = df_prod_countrie.fillna(0)
 df_prod_countrie = df_prod_countrie.reset_index()
 df_prod_countrie.columns = ['production_countries', 'Netflix', 'Prime']
 
-
-# -
-
+# %%
 df_prod_countrie
 
+# %%
 df_prod_countrie
 # turn netflix and prime columns into one column with values 'Netflix' and 'Prime'
 df_prod_countrie = df_prod_countrie.melt(id_vars=['production_countries'], value_vars=['Netflix', 'Prime'],
                                          var_name='streaming_service', value_name='size')
 df_prod_countrie['size'] = df_prod_countrie['size']
 
+# %%
 # remove incorrect codes from production_countries
 df_prod_countrie = df_prod_countrie[df_prod_countrie['production_countries'] != '']
 df_prod_countrie = df_prod_countrie[df_prod_countrie['production_countries'] != 'SU']
@@ -468,7 +489,7 @@ df_prod_countrie = df_prod_countrie[df_prod_countrie['production_countries'] != 
 df_prod_countrie = df_prod_countrie[df_prod_countrie['production_countries'] != 'XC']
 df_prod_countrie = df_prod_countrie[df_prod_countrie['production_countries'] != 'AN']
 
-# +
+# %%
 fig = px.scatter_geo(df_prod_countrie, locations='production_countries', color='streaming_service',
                      hover_name='production_countries', size='size',
                      projection='natural earth')
@@ -477,15 +498,16 @@ fig = px.scatter_geo(df_prod_countrie, locations='production_countries', color='
 fig.show()
 
 # fig.write_html("worldmap.html")
-# -
 
+# %%
 df_prod_countrie
 
+# %%
 test = (df_prod_countrie['Netflix'],)
 bootstrap(test, np.median, method='percentile').confidence_interval.low
 
 
-# +
+# %%
 prod_countrie_netflix = netflix_movies['production_countries'].apply(lambda x: x.replace('[', '').replace(
     ']', '').replace('"', '').replace(' ', '').replace("'", '').split(',')).sum()
 prod_countrie_netflix = pd.Series(
@@ -520,7 +542,7 @@ df_prod_countrie[1:30].plot(kind='bar', title='Number of movies per country in N
     10, 5), capsize=5)
 
 
-# +
+# %%
 prod_comp_netflix = netflix_movies['production_companies'].apply(lambda x: x.replace('[', '').replace(']', '').replace(
     '"', '').split(',')).sum()
 prod_comp_netflix = pd.Series(prod_comp_netflix).value_counts(
@@ -553,16 +575,16 @@ df_prod_comp = df_prod_comp.drop(columns=['sum'])
 df_prod_comp[1:30].plot(kind='bar', title='Number of movies per production company in Netflix and Prime', figsize=(
     10, 5))
 
-# +
+# %%
 # df_prod_comp = df_prod_comp[(df_prod_comp['Netflix'] > 0) & (df_prod_comp['Prime'] > 0)]
 
 # df_prod_comp[:20].plot(kind='bar', title='Number of movies per production company in Netflix and Prime',
 # figsize=(10, 5))
-# -
 
+# %% [markdown]
 # > There are 900 production companies in common out of 6286. They have very different prodcution companies.
 
-# +
+# %%
 writers_netflix = pd.Series(netflix_movies['writers']).value_counts(
     sort=True, ascending=False, normalize=True)
 writers_prime = pd.Series(prime_movies['writers']).value_counts(
@@ -587,7 +609,7 @@ df_writers = df_writers.drop(columns=['sum'])
 df_writers[:20].plot(
     kind='bar', title='Number of movies per writer in Netflix and Prime', figsize=(10, 5))
 
-# +
+# %%
 directors_netflix = pd.Series(netflix_movies['directors']).value_counts(
     sort=True, ascending=False, normalize=True)
 directors_prime = pd.Series(prime_movies['directors']).value_counts(
