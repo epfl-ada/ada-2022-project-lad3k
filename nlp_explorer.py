@@ -534,7 +534,7 @@ df['streaming_service'] = ['both' if netflix and prime else 'netflix' if netflix
 # %%
 def plot_rating_distribution(df: pd.DataFrame):
     """
-    Plot the rating distribution on Netflix and Prime
+    Plot the rating distribution on Netflix and Prime using Plotly.
 
     Args:
         df (pd.DataFrame): The dataframe containing the data,
@@ -544,50 +544,118 @@ def plot_rating_distribution(df: pd.DataFrame):
     df['on_netflix'] = df['on_netflix'].astype(bool)
     df['on_prime'] = df['on_prime'].astype(bool)
 
-    # plot the movie rating distribution on Netflix and Prime
-    # rating is in column "averageRating"
-    # a col "streaming_service" tells us if the movie is on Netflix, Prime or both
-    plt.hist(df[df['on_netflix']]['averageRating'],
-             bins=np.arange(0, 10.1, 0.5),
-             alpha=0.5,
-             density=True,
-             color='C0',
-             label='Netflix')
-    plt.axvline(df[df['on_netflix']]['averageRating'].mean(),
-                color='C0', linestyle='dashed', linewidth=1)
-    plt.axvline(df[df['on_netflix']]['averageRating'].median(),
-                color='C0', linestyle='dotted', linewidth=1)
-
-    plt.hist(df[df['on_prime']]['averageRating'],
-             bins=np.arange(0, 10.1, 0.5),
-             alpha=0.5,
-             density=True,
-             color='C1',
-             label='Prime')
-    plt.axvline(df[df['on_prime']]['averageRating'].mean(),
-                color='C1', linestyle='dashed', linewidth=1)
-    plt.axvline(df[df['on_prime']]['averageRating'].median(),
-                color='C1', linestyle='dotted', linewidth=1)
-
-    # add legend for hist and mean/median
-    legend_elements = [
-        plt.Line2D([0], [0], color='C0', lw=4, label='Netflix'),
-        plt.Line2D([0], [0], color='C1', lw=4, label='Prime'),
-        plt.Line2D([0], [0], color='k', lw=1,
-                   linestyle='dashed', label='Mean'),
-        plt.Line2D([0], [0], color='k', lw=1,
-                   linestyle='dotted', label='Median')
+    traces = [
+        go.Histogram(
+            x=df[df['on_netflix']]['averageRating'],
+            histnorm='probability',
+            xbins=dict(start=0, end=10, size=0.1),
+            opacity=0.5,
+            name='Netflix',
+            marker_color=netflix_color,
+        ),
+        go.Histogram(
+            x=df[df['on_prime']]['averageRating'],
+            histnorm='probability',
+            xbins=dict(start=0, end=10, size=0.1),
+            opacity=0.5,
+            name='Prime',
+            marker_color=prime_color
+        ),
+        go.Scatter(
+            x=[df[df['on_netflix']]['averageRating'].mean()] * 2,
+            y=[0, 1],
+            yaxis='y2',
+            name='Netflix mean',
+            mode='lines',
+            line=dict(color=netflix_color, width=1, dash='dash'),
+            legendgroup='Mean',
+            showlegend=False,
+        ),
+        go.Scatter(
+            x=[df[df['on_netflix']]['averageRating'].median()] * 2,
+            y=[0, 1],
+            yaxis='y2',
+            name='Netflix median',
+            mode='lines',
+            line=dict(color=netflix_color, width=1, dash='dot'),
+            legendgroup='Median',
+            showlegend=False,
+        ),
+        go.Scatter(
+            x=[df[df['on_prime']]['averageRating'].mean()] * 2,
+            y=[0, 1],
+            yaxis='y2',
+            name='Prime mean',
+            mode='lines',
+            line=dict(color=prime_color, width=1, dash='dash'),
+            legendgroup='Mean',
+            showlegend=False,
+        ),
+        go.Scatter(
+            x=[df[df['on_prime']]['averageRating'].median()] * 2,
+            y=[0, 1],
+            yaxis='y2',
+            name='Prime median',
+            mode='lines',
+            line=dict(color=prime_color, width=1, dash='dot'),
+            legendgroup='Median',
+            showlegend=False,
+        ),
+        # legends purpose only
+        go.Scatter(
+            yaxis='y2',
+            x=[0],
+            y=[0],
+            name='Median',
+            mode='lines',
+            line=dict(color='black', width=1, dash='dot'),
+            legendgroup='Median',
+        ),
+        go.Scatter(
+            yaxis='y2',
+            x=[0],
+            y=[0],
+            name='Mean',
+            mode='lines',
+            line=dict(color='black', width=1, dash='dash'),
+            legendgroup='Mean',
+        ),
     ]
-    plt.legend(handles=legend_elements, loc='upper right')
 
-    plt.title('Movie rating distribution on Netflix and Prime')
-    plt.xlabel('Average rating')
-    plt.ylabel('Density')
-    plt.show()
+    fig = go.Figure(data=traces)
+
+    fig.update_layout(barmode='overlay')
+
+    fig.update_layout(
+        title='Movie rating distribution on Netflix and Prime',
+        title_x=0.5,
+        xaxis_title='Average rating',
+        yaxis_title='Probability',
+        yaxis2=dict(
+            overlaying='y',
+            showgrid=False,
+            showline=False,
+            showticklabels=False,
+            range=[0, 1],
+        ),
+
+        legend=dict(
+            yanchor='top',
+            y=0.99,
+            xanchor='left',
+            x=0.01
+        )
+    )
+
+    # show the plots
+    fig.show()
 
 
 plot_rating_distribution(df)
 
+
+# %%
+df[df['on_prime']]['averageRating'].median()
 
 # %% [markdown]
 # From this first graph, it seems that you are more likely able to find an high rated movie on Netlfix
@@ -655,8 +723,8 @@ df_netflix.drop(columns=['on_netflix', 'on_prime'], inplace=True)
 df_prime = matching_df[matching_df['on_prime'] == 1].copy()
 df_prime.drop(columns=['on_netflix', 'on_prime'], inplace=True)
 
-# %%
 
+# %%
 
 def plot_hist_matching(df_netflix: pd.DataFrame, df_prime: pd.DataFrame):
     """
