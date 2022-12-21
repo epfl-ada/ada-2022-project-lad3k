@@ -355,37 +355,24 @@ netflix_sentiments_polarity = [
 netflix_sentiments_subjectivity = [
     sentiment.subjectivity for sentiment in netflix_sentiments]
 
-# divide prime_sentiments_polarity into 20 bins and compute the number of movies in each bin
-# then divide by the total number of movies to get the distribution
-prime_sentiments_polarity_dist = np.histogram(
-    prime_sentiments_polarity, bins=20)[0] / len(prime_sentiments_polarity)
-netflix_sentiments_polarity_dist = np.histogram(
-    netflix_sentiments_polarity, bins=20)[0] / len(netflix_sentiments_polarity)
-prime_sentiments_subjectivity_dist = np.histogram(
-    prime_sentiments_subjectivity, bins=20)[0] / len(prime_sentiments_subjectivity)
-netflix_sentiments_subjectivity_dist = np.histogram(
-    netflix_sentiments_subjectivity, bins=20)[0] / len(netflix_sentiments_subjectivity)
-
 netflix_color = '#636EFA'
 prime_color = '#FFA15A'
 
-bar_width = 1.0
 fig = make_subplots(rows=1, cols=2,
                     subplot_titles=('sentiment polarity distribution', 'sentiment subjectivity distribution'))
-data_polarity = [
-    go.Bar(name='Netflix', x=list(range(-10, 11)), y=netflix_sentiments_polarity_dist, width=bar_width,
-           marker_color=netflix_color, opacity=0.5),
-    go.Bar(name='Prime', x=list(range(-10, 11)), y=prime_sentiments_polarity_dist, width=bar_width,
-           marker_color=prime_color, opacity=0.5)
+data = [
+    go.Histogram(name='Netflix', x=netflix_sentiments_polarity, marker_color=netflix_color, opacity=0.5,
+                 histnorm='probability', xbins=dict(start=-1, end=1, size=0.1), legendgroup='Netflix'),
+    go.Histogram(name='Prime', x=prime_sentiments_polarity, marker_color=prime_color, opacity=0.5,
+                 histnorm='probability', xbins=dict(start=-1, end=1, size=0.1)),
+    go.Histogram(name='Netflix', x=netflix_sentiments_subjectivity, marker_color=netflix_color, opacity=0.5,
+                 histnorm='probability', xbins=dict(start=0, end=1, size=0.05), showlegend=False,
+                 legendgroup='Netflix'),
+    go.Histogram(name='Prime', x=prime_sentiments_subjectivity, marker_color=prime_color, opacity=0.5,
+                 histnorm='probability', xbins=dict(start=0, end=1, size=0.05), showlegend=False),
 ]
-data_subjectivity = [
-    go.Bar(name='Netflix', x=list(range(21)), y=netflix_sentiments_subjectivity_dist, width=bar_width,
-           marker_color=netflix_color, opacity=0.5, showlegend=False),
-    go.Bar(name='Prime', x=list(range(21)), y=prime_sentiments_subjectivity_dist, width=bar_width,
-           marker_color=prime_color, opacity=0.5, showlegend=False)
-]
-fig.add_traces(data_polarity, rows=1, cols=1)
-fig.add_traces(data_subjectivity, rows=1, cols=2)
+for i, elem in enumerate(data):
+    fig.add_trace(elem, row=1, col=int(1 + i/2))
 
 # compute mean and median for each distribution for each service
 netflix_polarity_mean = np.mean(netflix_sentiments_polarity)
@@ -397,54 +384,36 @@ netflix_subjectivity_median = np.median(netflix_sentiments_subjectivity)
 prime_subjectivity_mean = np.mean(prime_sentiments_subjectivity)
 prime_subjectivity_median = np.median(prime_sentiments_subjectivity)
 # polarity mean and median
-netflix_mean = go.Scatter(x=[netflix_polarity_mean, netflix_polarity_mean], y=[0, 0.35], name='Netflix Mean',
-                          mode='lines', line=dict(color='blue', width=2, dash='dot'))
-netflix_median = go.Scatter(x=[netflix_polarity_median, netflix_polarity_median], y=[0, 0.35], name='Netflix Median',
-                            mode='lines', line=dict(color='blue', width=2, dash='dashdot'))
-prime_mean = go.Scatter(x=[prime_polarity_mean, prime_polarity_mean], y=[0, 0.35], name='Prime Mean', mode='lines',
-                        line=dict(color='orange', width=2, dash='dot'))
-prime_median = go.Scatter(x=[prime_polarity_median, prime_polarity_median], y=[0, 0.35], name='Prime Median',
-                          mode='lines', line=dict(color='orange', width=2, dash='dashdot'))
-fig.add_trace(netflix_mean, row=1, col=1)
-fig.add_trace(netflix_median, row=1, col=1)
-fig.add_trace(prime_mean, row=1, col=1)
-fig.add_trace(prime_median, row=1, col=1)
-# subjectivity mean and median
-netflix_mean_subj = go.Scatter(x=[netflix_subjectivity_mean*20, netflix_subjectivity_mean*20], y=[0, 0.35],
-                               showlegend=False, mode='lines', line=dict(color='blue', width=2, dash='dot'))
-netflix_median_subj = go.Scatter(x=[netflix_subjectivity_median*20, netflix_subjectivity_median*20], y=[0, 0.35],
-                                 showlegend=False, mode='lines', line=dict(color='blue', width=2, dash='dashdot'))
-prime_mean_subj = go.Scatter(x=[prime_subjectivity_mean*20, prime_subjectivity_mean*20], y=[0, 0.35],
-                             showlegend=False, mode='lines', line=dict(color='orange', width=2, dash='dot'))
-prime_median_subj = go.Scatter(x=[prime_subjectivity_median*20, prime_subjectivity_median*20], y=[0, 0.35],
-                               showlegend=False, mode='lines', line=dict(color='orange', width=2, dash='dashdot'))
-fig.add_trace(netflix_mean_subj, row=1, col=2)
-fig.add_trace(netflix_median_subj, row=1, col=2)
-fig.add_trace(prime_mean_subj, row=1, col=2)
-fig.add_trace(prime_median_subj, row=1, col=2)
+polarity_y_range = [0, 0.31]
+subjectivity_y_range = [0, 0.12]
+width = 1
+polarity_mean_median_lines = [
+    go.Scatter(x=[netflix_polarity_mean]*2, y=polarity_y_range, name='Mean', legendgroup='Mean',
+               mode='lines', line=dict(color=netflix_color, width=width, dash='dot')),
+    go.Scatter(x=[netflix_polarity_median]*2, y=polarity_y_range, name='Median', legendgroup='Median',
+               mode='lines', line=dict(color=netflix_color, width=width, dash='dashdot')),
+    go.Scatter(x=[prime_polarity_mean]*2, y=polarity_y_range, mode='lines', name='Prime Mean',
+               line=dict(color=prime_color, width=width, dash='dot'), legendgroup='Mean',
+               showlegend=False),
+    go.Scatter(x=[prime_polarity_median]*2, y=polarity_y_range, legendgroup='Median', showlegend=False,
+               name='Prime Median', mode='lines', line=dict(color=prime_color, width=width, dash='dashdot')),
+    go.Scatter(x=[netflix_subjectivity_mean]*2, y=subjectivity_y_range, legendgroup='Mean', name='Netflix Mean',
+               showlegend=False, mode='lines', line=dict(color=netflix_color, width=width, dash='dot')),
+    go.Scatter(x=[netflix_subjectivity_median]*2, y=subjectivity_y_range, legendgroup='Median', name='Netflix Median',
+               showlegend=False, mode='lines', line=dict(color=netflix_color, width=width, dash='dashdot')),
+    go.Scatter(x=[prime_subjectivity_mean]*2, y=subjectivity_y_range, legendgroup='Mean', name='Prime Mean',
+               showlegend=False, mode='lines', line=dict(color=prime_color, width=width, dash='dot')),
+    go.Scatter(x=[prime_subjectivity_median]*2, y=subjectivity_y_range, legendgroup='Median', name='Prime Median',
+               showlegend=False, mode='lines', line=dict(color=prime_color, width=width, dash='dashdot')),
+]
+for i, elem in enumerate(polarity_mean_median_lines):
+    fig.add_trace(elem, row=1, col=int(1 + i/4))
 
-x_tick_values_polarity = list(range(-10, 11))
-x_tick_values_subjectivity = list(range(21))
-x_tick_labels_polarity = [f'{i / 10:.1f}' for i in x_tick_values_polarity]
-x_tick_labels_subjectivity = [
-    f'{i / 20:.2f}' for i in x_tick_values_subjectivity]
-fig.update_layout(
-    height=500,
-    xaxis=dict(tickvals=x_tick_values_polarity,
-               ticktext=x_tick_labels_polarity, tickangle=-90),
-    yaxis=dict(title='density'),
-    legend_orientation='h',
-    legend=dict(x=0.85, y=1.0)
-)
-fig.update_layout(legend_tracegroupgap=1)
-fig.update_xaxes(tickvals=x_tick_values_subjectivity,
-                 ticktext=x_tick_labels_subjectivity, tickangle=-90, row=1, col=2)
-fig.update_yaxes(title_text='density', row=1, col=2)
-fig.update_xaxes(title_text='sentiment polarity', row=1, col=1)
-fig.update_xaxes(title_text='sentiment subjectivity', row=1, col=2)
 fig.update_layout(barmode='overlay')
+for i, name in enumerate(['Polarity', 'Subjectivity'], start=1):
+    fig.update_xaxes(title_text='{} value'.format(name), row=1, col=i)
+    fig.update_yaxes(title_text='probability', row=1, col=i)
 fig.show()
-
 
 # %% [markdown]
 # From these graphs, we see that the polarity is a little bit higher than 0 for both streaming services. It would
@@ -552,7 +521,7 @@ df['streaming_service'] = ['both' if netflix and prime else 'netflix' if netflix
 # %%
 def plot_rating_distribution(df: pd.DataFrame):
     """
-    Plot the rating distribution on Netflix and Prime
+    Plot the rating distribution on Netflix and Prime using Plotly.
 
     Args:
         df (pd.DataFrame): The dataframe containing the data,
@@ -562,50 +531,118 @@ def plot_rating_distribution(df: pd.DataFrame):
     df['on_netflix'] = df['on_netflix'].astype(bool)
     df['on_prime'] = df['on_prime'].astype(bool)
 
-    # plot the movie rating distribution on Netflix and Prime
-    # rating is in column "averageRating"
-    # a col "streaming_service" tells us if the movie is on Netflix, Prime or both
-    plt.hist(df[df['on_netflix']]['averageRating'],
-             bins=np.arange(0, 10.1, 0.5),
-             alpha=0.5,
-             density=True,
-             color='C0',
-             label='Netflix')
-    plt.axvline(df[df['on_netflix']]['averageRating'].mean(),
-                color='C0', linestyle='dashed', linewidth=1)
-    plt.axvline(df[df['on_netflix']]['averageRating'].median(),
-                color='C0', linestyle='dotted', linewidth=1)
-
-    plt.hist(df[df['on_prime']]['averageRating'],
-             bins=np.arange(0, 10.1, 0.5),
-             alpha=0.5,
-             density=True,
-             color='C1',
-             label='Prime')
-    plt.axvline(df[df['on_prime']]['averageRating'].mean(),
-                color='C1', linestyle='dashed', linewidth=1)
-    plt.axvline(df[df['on_prime']]['averageRating'].median(),
-                color='C1', linestyle='dotted', linewidth=1)
-
-    # add legend for hist and mean/median
-    legend_elements = [
-        plt.Line2D([0], [0], color='C0', lw=4, label='Netflix'),
-        plt.Line2D([0], [0], color='C1', lw=4, label='Prime'),
-        plt.Line2D([0], [0], color='k', lw=1,
-                   linestyle='dashed', label='Mean'),
-        plt.Line2D([0], [0], color='k', lw=1,
-                   linestyle='dotted', label='Median')
+    traces = [
+        go.Histogram(
+            x=df[df['on_netflix']]['averageRating'],
+            histnorm='probability',
+            xbins=dict(start=0, end=10, size=0.1),
+            opacity=0.5,
+            name='Netflix',
+            marker_color=netflix_color,
+        ),
+        go.Histogram(
+            x=df[df['on_prime']]['averageRating'],
+            histnorm='probability',
+            xbins=dict(start=0, end=10, size=0.1),
+            opacity=0.5,
+            name='Prime',
+            marker_color=prime_color
+        ),
+        go.Scatter(
+            x=[df[df['on_netflix']]['averageRating'].mean()] * 2,
+            y=[0, 1],
+            yaxis='y2',
+            name='Netflix mean',
+            mode='lines',
+            line=dict(color=netflix_color, width=1, dash='dash'),
+            legendgroup='Mean',
+            showlegend=False,
+        ),
+        go.Scatter(
+            x=[df[df['on_netflix']]['averageRating'].median()] * 2,
+            y=[0, 1],
+            yaxis='y2',
+            name='Netflix median',
+            mode='lines',
+            line=dict(color=netflix_color, width=1, dash='dot'),
+            legendgroup='Median',
+            showlegend=False,
+        ),
+        go.Scatter(
+            x=[df[df['on_prime']]['averageRating'].mean()] * 2,
+            y=[0, 1],
+            yaxis='y2',
+            name='Prime mean',
+            mode='lines',
+            line=dict(color=prime_color, width=1, dash='dash'),
+            legendgroup='Mean',
+            showlegend=False,
+        ),
+        go.Scatter(
+            x=[df[df['on_prime']]['averageRating'].median()] * 2,
+            y=[0, 1],
+            yaxis='y2',
+            name='Prime median',
+            mode='lines',
+            line=dict(color=prime_color, width=1, dash='dot'),
+            legendgroup='Median',
+            showlegend=False,
+        ),
+        # legends purpose only
+        go.Scatter(
+            yaxis='y2',
+            x=[0],
+            y=[0],
+            name='Median',
+            mode='lines',
+            line=dict(color='black', width=1, dash='dot'),
+            legendgroup='Median',
+        ),
+        go.Scatter(
+            yaxis='y2',
+            x=[0],
+            y=[0],
+            name='Mean',
+            mode='lines',
+            line=dict(color='black', width=1, dash='dash'),
+            legendgroup='Mean',
+        ),
     ]
-    plt.legend(handles=legend_elements, loc='upper right')
 
-    plt.title('Movie rating distribution on Netflix and Prime')
-    plt.xlabel('Average rating')
-    plt.ylabel('Density')
-    plt.show()
+    fig = go.Figure(data=traces)
+
+    fig.update_layout(barmode='overlay')
+
+    fig.update_layout(
+        title='Movie rating distribution on Netflix and Prime',
+        title_x=0.5,
+        xaxis_title='Average rating',
+        yaxis_title='Probability',
+        yaxis2=dict(
+            overlaying='y',
+            showgrid=False,
+            showline=False,
+            showticklabels=False,
+            range=[0, 1],
+        ),
+
+        legend=dict(
+            yanchor='top',
+            y=0.99,
+            xanchor='left',
+            x=0.01
+        )
+    )
+
+    # show the plots
+    fig.show()
 
 
 plot_rating_distribution(df)
 
+
+# %%
+df[df['on_prime']]['averageRating'].median()
 
 # %% [markdown]
 # From this first graph, it seems that you are more likely able to find an high rated movie on Netlfix
@@ -673,8 +710,8 @@ df_netflix.drop(columns=['on_netflix', 'on_prime'], inplace=True)
 df_prime = matching_df[matching_df['on_prime'] == 1].copy()
 df_prime.drop(columns=['on_netflix', 'on_prime'], inplace=True)
 
-# %%
 
+# %%
 
 def plot_hist_matching(df_netflix: pd.DataFrame, df_prime: pd.DataFrame):
     """
