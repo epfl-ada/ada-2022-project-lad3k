@@ -267,14 +267,14 @@ for i, mask in enumerate([alice_mask, love_mask, investigation_mask]):
         text = topics[10]
     else:
         text = topics[5]
-    wc = WordCloud(background_color='black', max_words=2000,
+    wc = WordCloud(background_color='white', max_words=2000,
                    mask=mask, contour_width=3, contour_color='steelblue')
     wc.generate(text)
     axes[i].imshow(wc, interpolation='bilinear')
     axes[i].axis('off')
 # save the figure
 # give black background to the figure
-fig.patch.set_facecolor('black')
+fig.patch.set_facecolor('white')
 plt.savefig('images/wordcloud.png', dpi=300, bbox_inches='tight')
 
 
