@@ -15,7 +15,6 @@
 #     name: python3
 # ---
 # %%
-import math
 import string
 
 import matplotlib.pyplot as plt
@@ -37,6 +36,7 @@ from sklearn.metrics import classification_report
 from sklearn.preprocessing import MultiLabelBinarizer
 from textblob import TextBlob
 from tqdm import tqdm
+from wordcloud import WordCloud
 
 from src import helper
 from src.helper import prepare_df
@@ -169,7 +169,7 @@ print('processes movie overview:', tokens[0])
 # #### Hyperparameters
 
 # %%
-def train_LDA(tokens, n_topics, n_passes, no_below, no_above, n_words=12):
+def train_LDA(tokens, n_topics, n_passes, no_below, no_above, n_words):
     """ Train an LDA model given some hyperparameters
     Args:
         tokens (list): A list of lists, where each inner list is a list of tokens
@@ -177,7 +177,7 @@ def train_LDA(tokens, n_topics, n_passes, no_below, no_above, n_words=12):
         n_passes (int): The number of passes to run through the data when fitting the model
         no_below (int): The minimum number of documents a word must be in to be included in the model
         no_above (float): The maximum proportion of documents a word can be in to be included in the model
-        n_words (int, optional): The number of words to include in the list of topics. Defaults to 12.
+        n_words (int): The number of words to include in the list of topics.
 
     Returns:
         tuple: A tuple containing the trained LDA model, a list of topics, a list of topic distributions
@@ -187,7 +187,7 @@ def train_LDA(tokens, n_topics, n_passes, no_below, no_above, n_words=12):
     dictionary, corpus = build_dictionnary_and_corpus(
         tokens, no_below=no_below, no_above=no_above)
     lda_model = create_lda_model(corpus, dictionary, n_topics)
-    topics = get_topics(lda_model, n_words)
+    topics = get_topics(lda_model, n_topics, n_words)
     topic_distribution = get_topic_distribution(lda_model, corpus)
     return lda_model, topics, topic_distribution, corpus
 
@@ -211,11 +211,11 @@ no_below = 10
 no_above = 0.5
 n_topics = 12
 n_passes = 120
-n_words = 15
+n_words = 30
 lda_model, topics, topic_distribution, corpus =\
     train_LDA(tokens, n_topics, n_passes, no_below, no_above, n_words)
 for i, topic in enumerate(topics):
-    print('Topic {}: {}'.format(i, topic))
+    print('Topic {}: {}'.format(i, ' '.join(topic.split(' ')[0:12])))
 # for each movie plot, get its topic distribution (i.e the probability of each topic in descending order)
 topic_distributions = get_topic_distribution(lda_model, corpus)
 print('\n')
@@ -224,7 +224,6 @@ for i in range(1, 3):
     print('Topic distribution for the first movie plot: {}'.format(
         topic_distributions[i][0:5]))
     print('\n')
-
 
 # %% [markdown]
 # Based the description of each topic, we could assign the following names to each one:
@@ -240,6 +239,39 @@ for i in range(1, 3):
 # - Topic 9: **High School and Youth**
 # - Topic 10: **Romance and Love**
 # - Topic 11: **Crime and Gangs**
+#
+# ### Visualizing words of topics
+
+# %%
+
+
+# %%
+def show_wordcloud(data):
+    wordcloud = WordCloud(
+        background_color='white',
+        max_words=100,
+        max_font_size=30,
+        scale=3,
+        random_state=1)
+
+    wordcloud = wordcloud.generate(str(data))
+
+    fig = plt.figure(1, figsize=(12, 12))
+    plt.axis('off')
+
+    plt.imshow(wordcloud)
+    plt.show()
+    # save the plot as svg
+    fig.savefig('wordcloud.svg', format='svg')
+
+
+# %%
+# make a pyplot figure
+#  get words from the first topic
+words = topics[0]
+print(words)
+show_wordcloud(words)
+
 
 # %%
 def get_topic_distributions_for_movies(indices, topic_distributions, n_topics):
@@ -388,26 +420,49 @@ polarity_y_range = [0, 0.31]
 subjectivity_y_range = [0, 0.12]
 width = 1
 polarity_mean_median_lines = [
-    go.Scatter(x=[netflix_polarity_mean]*2, y=polarity_y_range, name='Mean', legendgroup='Mean',
-               mode='lines', line=dict(color=netflix_color, width=width, dash='dot')),
-    go.Scatter(x=[netflix_polarity_median]*2, y=polarity_y_range, name='Median', legendgroup='Median',
-               mode='lines', line=dict(color=netflix_color, width=width, dash='dashdot')),
+    go.Scatter(x=[netflix_polarity_mean]*2, y=polarity_y_range, name='Netflix Mean', legendgroup='Mean',
+               mode='lines', line=dict(color=netflix_color, width=width, dash='dash'), showlegend=False),
+    go.Scatter(x=[netflix_polarity_median]*2, y=polarity_y_range, name='Netflix Median', legendgroup='Median',
+               mode='lines', line=dict(color=netflix_color, width=width, dash='dot'), showlegend=False),
     go.Scatter(x=[prime_polarity_mean]*2, y=polarity_y_range, mode='lines', name='Prime Mean',
-               line=dict(color=prime_color, width=width, dash='dot'), legendgroup='Mean',
-               showlegend=False),
+               line=dict(color=prime_color, width=width, dash='dash'), legendgroup='Mean', showlegend=False),
     go.Scatter(x=[prime_polarity_median]*2, y=polarity_y_range, legendgroup='Median', showlegend=False,
-               name='Prime Median', mode='lines', line=dict(color=prime_color, width=width, dash='dashdot')),
+               name='Prime Median', mode='lines', line=dict(color=prime_color, width=width, dash='dot')),
     go.Scatter(x=[netflix_subjectivity_mean]*2, y=subjectivity_y_range, legendgroup='Mean', name='Netflix Mean',
-               showlegend=False, mode='lines', line=dict(color=netflix_color, width=width, dash='dot')),
+               showlegend=False, mode='lines', line=dict(color=netflix_color, width=width, dash='dash')),
     go.Scatter(x=[netflix_subjectivity_median]*2, y=subjectivity_y_range, legendgroup='Median', name='Netflix Median',
-               showlegend=False, mode='lines', line=dict(color=netflix_color, width=width, dash='dashdot')),
+               showlegend=False, mode='lines', line=dict(color=netflix_color, width=width, dash='dot')),
     go.Scatter(x=[prime_subjectivity_mean]*2, y=subjectivity_y_range, legendgroup='Mean', name='Prime Mean',
-               showlegend=False, mode='lines', line=dict(color=prime_color, width=width, dash='dot')),
+               showlegend=False, mode='lines', line=dict(color=prime_color, width=width, dash='dash')),
     go.Scatter(x=[prime_subjectivity_median]*2, y=subjectivity_y_range, legendgroup='Median', name='Prime Median',
-               showlegend=False, mode='lines', line=dict(color=prime_color, width=width, dash='dashdot')),
+               showlegend=False, mode='lines', line=dict(color=prime_color, width=width, dash='dot')),
 ]
 for i, elem in enumerate(polarity_mean_median_lines):
     fig.add_trace(elem, row=1, col=int(1 + i/4))
+
+# legends purpose only
+line_legend = [
+    go.Scatter(
+        yaxis='y2',
+        x=[0],
+        y=[0],
+        name='Median',
+        mode='lines',
+        line=dict(color='black', width=1, dash='dot'),
+        legendgroup='Median',
+    ),
+    go.Scatter(
+        yaxis='y2',
+        x=[0],
+        y=[0],
+        name='Mean',
+        mode='lines',
+        line=dict(color='black', width=1, dash='dash'),
+        legendgroup='Mean',
+    )
+]
+for elem in line_legend:
+    fig.add_trace(elem, row=1, col=1)
 
 fig.update_layout(barmode='overlay')
 for i, name in enumerate(['Polarity', 'Subjectivity'], start=1):
@@ -416,7 +471,7 @@ for i, name in enumerate(['Polarity', 'Subjectivity'], start=1):
 fig.show()
 
 # %% [markdown]
-# From these graphs, we see that the polarity is a little bit higher than 0 for both streaming services. It would
+# From these graphs, we see that the polarity is a little bit higher than 0 for Netflix. It
 # also seems that Prime have movies with a lower polarity than Netflix, i.e. Prime movies overviews would have a
 # more "negative" sentiment. For subjectivity, we see both distributions seems roughly equal. We also see
 # that Prime seems to have more "objective" movies overview than Neflix. Netflix on its side seems to have a little bit
@@ -757,11 +812,6 @@ for col in ['numVotes', 'runtimeMinutes', 'sentiments_polarity', 'release_year']
     print(f'{col}: t-statistic: {round(t_statistic_polarity, 2)}, p-value: {round(p_value_polarity,2)}')
 
 
-# %% [markdown]
-# We see that all p-values are lower than the treshold of 0.05. We can reject our null hypothesis that the distibutions
-# of netflix and prime are equal for each feature. We will see if we can matched the film between prime and netflix
-# to obtain the same distribution for each feature.
-
 # %%
 def plot_genre_distribution(df_netflix: pd.DataFrame, df_prime: pd.DataFrame):
     """Plot the genre distribution on Netflix and Prime
@@ -770,36 +820,41 @@ def plot_genre_distribution(df_netflix: pd.DataFrame, df_prime: pd.DataFrame):
         df_netflix (pd.DataFrame): The dataframe containing the data for Netflix
         df_prime (pd.DataFrame): The dataframe containing the data for Prime
     """
+    # for each genre, compute the number of movies on Netflix and Prime
+    netflix_categories_dist = df_netflix[genres].sum() / len(df_netflix)
+    prime_categories_dist = df_prime[genres].sum() / len(df_prime)
+    netflix_categories_dist = netflix_categories_dist.sort_values(
+        ascending=False)
+    prime_categories_dist = prime_categories_dist.sort_values(ascending=False)
+    x_positions = np.arange(len(genres))
 
-    # genres should be sorted by occurences
-    max_y_axis = max(df_netflix[genres].sum().max(
-    ) / len(df_netflix), df_prime[genres].sum().max() / len(df_prime))
-    # round up to next multiple of 0.1
-    max_y_axis = math.ceil(max_y_axis * 10) / 10
-
-    fig, ax = plt.subplots(figsize=(15, 5))
     bar_width = 0.35
-    # genres = ['Horror', 'Action']
+    fig = go.Figure(data=[
+        go.Bar(name='Netflix', x=x_positions, y=netflix_categories_dist*100, width=bar_width,
+               marker_color=netflix_color, opacity=0.8),
+        go.Bar(name='Prime', x=x_positions, y=prime_categories_dist*100, width=bar_width, marker_color=prime_color,
+               opacity=0.8)
+    ])
 
-    # we add the bar_width to the x axis to have the bars side by side
-    ax.bar(np.arange(len(genres)) + bar_width, df_netflix[genres].sum() / len(df_netflix), bar_width,
-           alpha=0.5, label='Netflix')
-    ax.bar(np.arange(len(genres)), df_prime[genres].sum() / len(df_prime), bar_width,
-           alpha=0.5, label='Prime')
+    fig.update_layout(
+        height=500,
+        xaxis=dict(tickvals=x_positions, ticktext=genres, tickangle=-90),
+        yaxis=dict(title='% of Movies'),
+        title=dict(
+            text='% of Movies per Genre for each Streaming Service', x=0.45, y=0.9),
+        legend_orientation='h',
+        legend=dict(x=1, y=1)
+    )
 
-    # set the x axis ticks to the genre names
-    ax.set_xticklabels(genres, rotation=90)
-    ax.set_xticks(np.arange(len(genres)) + bar_width / 2)
-
-    ax.set_xlabel('Genre')
-    ax.set_ylabel('% of Movies')
-    ax.set_title('% of Movies per Genre per Streaming Service')
-    ax.legend()
-
-    plt.show()
+    fig.show()
 
 
 plot_genre_distribution(df_netflix, df_prime)
+
+# %% [markdown]
+# We see that all p-values are lower than the treshold of 0.05. We can reject our null hypothesis that the distibutions
+# of netflix and prime are equal for each feature. We will see if we can matched the film between prime and netflix
+# to obtain the same distribution for each feature.
 
 # %% [markdown]
 # We'll now compute a propensity score for each observation using a logistic regression.
