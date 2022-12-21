@@ -30,6 +30,7 @@ from nltk import pos_tag
 from nltk.corpus import stopwords
 from nltk.stem.wordnet import WordNetLemmatizer
 from nltk.tokenize import word_tokenize
+from PIL import Image
 from plotly.subplots import make_subplots
 from scipy.stats import ttest_ind
 from sklearn.metrics import classification_report
@@ -51,6 +52,9 @@ nltk.download('wordnet')
 nltk.download('omw-1.4')
 nltk.download('averaged_perceptron_tagger')
 
+netflix_color = '#636EFA'
+prime_color = '#FFA15A'
+
 # %% [markdown]
 # ## NLP
 # In this part we will see if we can find a different distribution of topics between movies on Netflix and Prime.
@@ -60,25 +64,24 @@ nltk.download('averaged_perceptron_tagger')
 # ### Data Loading and Preparation
 
 # %%
+# Load data
 df = prepare_df()
+# fix a seed for reproducibility
+np.random.seed(42)
+
+# %% [markdown]
+# #### Tokenization
 
 # %%
 # create a new dataframe where only keep the overview column on_netflix and on_prime
-df_overview_complete = df[['overview', 'on_netflix', 'on_prime']]
-df_overview_complete.head()
+df_overview = df[['overview', 'on_netflix', 'on_prime']]
 # replace the index by a range of number
-df_overview_complete = df_overview_complete.reset_index(drop=True)
-df_overview_complete.head()
-
-# %%
-df_overview = df_overview_complete.sample(frac=1.0, random_state=42)
-print(f'Number of movies in the sample: {len(df_overview)}')
-# convert the overview column to string
-df_overview['overview'] = df_overview['overview'].astype(str)
+df_overview.reset_index(drop=True, inplace=True)
 # Tokenize the overviews
+df_overview['overview'] = df_overview['overview'].astype(str)
 df_overview['tokenized_plots'] = df_overview['overview'].apply(
     lambda movie_plot: word_tokenize(movie_plot))
-df_overview.head()['tokenized_plots']
+df_overview.head()
 
 # %% [markdown]
 # #### Lemmatization
@@ -105,7 +108,7 @@ df_overview['lemmatized_plots'].head()
 # #### Stop words removal
 
 # %%
-# list of stop words could be improved
+# define our list of stopwords
 stop_words = ['\'s']
 all_stopwords = stopwords.words(
     'English') + list(string.punctuation) + stop_words
@@ -123,7 +126,12 @@ df_overview['plots_without_stopwords'] = df_overview['plots_without_stopwords'].
 # remove word if contains other letter than a-z or is a single character
 df_overview['plots_without_stopwords'] = df_overview['plots_without_stopwords'].apply(
     lambda plot: [word for word in plot if word.isalpha() and len(word) > 1])
-df_overview['plots_without_stopwords'].head()[0:3]
+df_overview['plots_without_stopwords'].head()[:3]
+
+# %% [markdown]
+# #### Removing words appearing only once
+# - We remove these words as they are likely to bring only noise to the model.
+# - There also a lots of names which are unique, which didn't add any informations.
 
 # %%
 # compute the frequency of each word
@@ -134,21 +142,12 @@ word_dist = nltk.FreqDist(all_words)
 print(f'Number of unique words: {len(word_dist)}')
 # find the words which appears only once
 rare_words = [word for word, count in word_dist.items() if count == 1]
+print(f'Number of words appearing once: {len(rare_words)}')
 # remove words appearing only once.
 df_overview['plots_without_stopwords'] = df_overview['plots_without_stopwords'].apply(
     lambda plot: [word for word in plot if word not in rare_words])
-df_overview['plots_without_stopwords'].head()[0:3]
+df_overview['plots_without_stopwords'].head()[:3]
 
-
-# %%
-before_stop_words_total_number_of_words =\
-    len([word for sentence in df_overview['lemmatized_plots']
-        for word in sentence])
-after_stop_words_total_number_of_words =\
-    len([word for sentence in df_overview['plots_without_stopwords']
-        for word in sentence])
-print('We kept {}% of the words in the corpus'.format(
-    round(after_stop_words_total_number_of_words/before_stop_words_total_number_of_words, 2) * 100))
 
 # %% [markdown]
 # ### Latent Direchlet Allocation
@@ -161,12 +160,13 @@ print('We kept {}% of the words in the corpus'.format(
 tokens = df_overview['plots_without_stopwords'].tolist()
 bigram_model = Phrases(tokens)
 tokens = list(bigram_model[tokens])
-print('original movie overview:', df_overview['overview'].iloc[0])
-print('processes movie overview:', tokens[0])
+print('First movie original full overview:', df_overview['overview'].iloc[0])
+print('First movie processed overview:', tokens[0])
 
 
 # %% [markdown]
-# #### Hyperparameters
+# We can see that our processing allows to keep only the important words, which is an essential conditions in order
+# to have a performant LDA model.
 
 # %%
 def train_LDA(tokens, n_topics, n_passes, no_below, no_above, n_words):
@@ -192,12 +192,19 @@ def train_LDA(tokens, n_topics, n_passes, no_below, no_above, n_words):
     return lda_model, topics, topic_distribution, corpus
 
 
+# %% [markdown]
+# #### Hyperparameters
+#
+# These hyperparameters were obtained by trying several combination and picking the one leading to best results.
+# A Result was good if topics were differents, well described by their words and representing the different categories
+# of movies in the dataframe.
+
 # %%
-# no_below = 60  # minimum number of documents a word must be present in to be kept
-no_below = 4  # minimum number of documents a word must be present in to be kept, less than 5 gives bad results
+no_below = 10  # minimum number of documents a word must be present in to be kept
 no_above = 0.5  # maximum proportion of documents a word can be present in to be kept
-n_topics = 10  # number of topics
-n_passes = 10  # almost converged after 5 iterations
+n_topics = 12  # number of topics
+n_passes = 120  # a good rule of thumb is n_passes = 10 * n_topics. We also seen that the LDA model converge rapidly
+n_words = 30  # number of words defining each topic
 
 # %% [markdown]
 # ### Dictionnary & Corpus
@@ -207,69 +214,72 @@ n_passes = 10  # almost converged after 5 iterations
 # #### LDA Model
 
 # %%
-no_below = 10
-no_above = 0.5
-n_topics = 12
-n_passes = 120
-n_words = 30
 lda_model, topics, topic_distribution, corpus =\
     train_LDA(tokens, n_topics, n_passes, no_below, no_above, n_words)
 for i, topic in enumerate(topics):
     print('Topic {}: {}'.format(i, ' '.join(topic.split(' ')[0:12])))
+
+# %% [markdown]
+# Based the description of each topic, we could assign the following names to each one:
+#
+# - Topic 0: **Forces of Change**
+# - Topic 1: **The Search for Purpose**
+# - Topic 2: **Seeking the Truth**
+# - Topic 3: **Overcoming Obstacles**
+# - Topic 4: **Exploring the Unknown**
+# - Topic 5: **Crime and Punishment**
+# - Topic 6: **Building a Better Future**
+# - Topic 7: **New Beginnings**
+# - Topic 8: **Uncovering Secrets**
+# - Topic 9: **Community and Connection**
+# - Topic 10:**Love and Romance**
+# - Topic 11:**Life's Crossroads**
+#
+# We see that these topics seems appropriate to descibe the movies on both platform, as they are describing variates
+# categories.
+#
+# We print below some topic distribution for some of the overviews:
+
+# %%
 # for each movie plot, get its topic distribution (i.e the probability of each topic in descending order)
 topic_distributions = get_topic_distribution(lda_model, corpus)
-print('\n')
-for i in range(1, 3):
+for i in [7, 11, 59]:
     print('Movie plot: {}'.format(df_overview['overview'].iloc[i]))
     print('Topic distribution for the first movie plot: {}'.format(
         topic_distributions[i][0:5]))
     print('\n')
 
-
 # %% [markdown]
-# Based the description of each topic, we could assign the following names to each one:
-# - Topic 0: **Criminal Investigation**
-# - Topic 1: **Coming of Age**
-# - Topic 2: **Espionage**
-# - Topic 3: **Police Action**
-# - Topic 4: **Military Operations**
-# - Topic 5: **Crime and Punishment**
-# - Topic 6: **War and Political Conflict**
-# - Topic 7: **Mystery and Suspense**
-# - Topic 8: **Relationships and Family Dynamics**
-# - Topic 9: **High School and Youth**
-# - Topic 10: **Romance and Love**
-# - Topic 11: **Crime and Gangs**
-#
 # ### Visualizing words of topics
 
 # %%
-def show_wordcloud(data):
-    wordcloud = WordCloud(
-        background_color='white',
-        max_words=100,
-        max_font_size=30,
-        scale=3,
-        random_state=1)
+# Generate a word cloud image
+alice_mask = np.array(Image.open('images/wordcloud_mask/alice.png'))
+love_mask = np.array(Image.open('images/wordcloud_mask/love.png'))
+investigation_mask = np.array(Image.open('images/wordcloud_mask/crime.webp'))
+# create subplots of 3 figures
+fig, axes = plt.subplots(1, 3, figsize=(20, 10))
+# generate word cloud for each topic
+for i, mask in enumerate([alice_mask, love_mask, investigation_mask]):
+    if i == 0:
+        text = topics[1]
+    elif i == 1:
+        text = topics[10]
+    else:
+        text = topics[5]
+    wc = WordCloud(background_color='black', max_words=2000,
+                   mask=mask, contour_width=3, contour_color='steelblue')
+    wc.generate(text)
+    axes[i].imshow(wc, interpolation='bilinear')
+    axes[i].axis('off')
+# save the figure
+# give black background to the figure
+fig.patch.set_facecolor('black')
+plt.savefig('images/wordcloud.png', dpi=300, bbox_inches='tight')
 
-    wordcloud = wordcloud.generate(str(data))
 
-    fig = plt.figure(1, figsize=(12, 12))
-    plt.axis('off')
-
-    plt.imshow(wordcloud)
-    plt.show()
-    # save the plot as svg
-    fig.savefig('wordcloud.svg', format='svg')
-
-
-# %%
-# make a pyplot figure
-#  get words from the first topic
-words = topics[0]
-print(words)
-show_wordcloud(words)
-
+# %% [markdown]
+# #### Topics Distribution among streaming services
 
 # %%
 def get_topic_distributions_for_movies(indices, topic_distributions, n_topics):
@@ -300,21 +310,9 @@ def get_topic_distributions_for_movies(indices, topic_distributions, n_topics):
 
 
 # %%
-df_overview.head()
-
-# %%
-names = ['Criminal Investigation',
-         'Coming of Age',
-         'Espionage',
-         'Police Action',
-         'Military Operations',
-         'Crime and Punishment',
-         'War and Political Conflict',
-         'Mystery and Suspense',
-         'Relationships and Family Dynamics',
-         'High School and Youth',
-         'Romance and Love',
-         'Crime and Gangs']
+names = ['Forces of Change', 'The Search for Purpose', 'Seeking the Truth', 'Overcoming Obstacles',
+         'Exploring the Unknown', 'Crime and Punishment', 'Building a Better Future', 'New Beginnings',
+         'Uncovering Secrets', 'Community and Connection', 'Love and Romance', 'Life\'s Crossroads']
 
 df_overview_netflix = df_overview[df_overview['on_netflix'] == 1]
 df_overview_prime = df_overview[df_overview['on_prime'] == 1]
@@ -333,9 +331,9 @@ prime_topics_dist = get_topic_distributions_for_movies(
 tick_positions = np.array(range(n_topics))
 bar_width = 0.4
 fig = go.Figure(data=[
-    go.Bar(name='Netflix', x=list(range(n_topics)), y=netflix_topics_dist, width=bar_width, marker_color='#636EFA',
+    go.Bar(name='Netflix', x=list(range(n_topics)), y=netflix_topics_dist, width=bar_width, marker_color=netflix_color,
            opacity=0.8),
-    go.Bar(name='Prime', x=list(range(n_topics)), y=prime_topics_dist, width=bar_width, marker_color='#FFA15A',
+    go.Bar(name='Prime', x=list(range(n_topics)), y=prime_topics_dist, width=bar_width, marker_color=prime_color,
            opacity=0.8)
 ])
 
@@ -355,9 +353,9 @@ fig.write_html('html/topic_distribution.html')
 
 # %% [markdown]
 # As we can see, the distribution is almost the same for each platform. This isn't so much surprising as
-# we've seen before that they have roughly the same proportion of movies for most of the categories.
-# Thus using topics in order to determine which streaming platform has the best rating will not be possible. This is
-# because as they have same distribution of topic, we cannot discriminate them on the topics.
+# we've seen before that they have roughly the same proportion of movies for most of the categories. This could also
+# due to a too weak model, as trained with less data than needed.
+# As the distribution are almost equals, we don't include the topic distribution during our observational analysis.
 #
 #
 # ### NLP with sentiment analysis
@@ -387,9 +385,8 @@ netflix_sentiments_polarity = [
 netflix_sentiments_subjectivity = [
     sentiment.subjectivity for sentiment in netflix_sentiments]
 
-netflix_color = '#636EFA'
-prime_color = '#FFA15A'
 
+# we plot the distribution of the polarity and subjectivity of the sentiment, for each platform
 fig = make_subplots(rows=1, cols=2,
                     subplot_titles=('sentiment polarity distribution', 'sentiment subjectivity distribution'))
 data = [
@@ -419,7 +416,7 @@ prime_subjectivity_median = np.median(prime_sentiments_subjectivity)
 polarity_y_range = [0, 0.31]
 subjectivity_y_range = [0, 0.12]
 width = 1
-polarity_mean_median_lines = [
+mean_median_lines = [
     go.Scatter(x=[netflix_polarity_mean]*2, y=polarity_y_range, name='Netflix Mean', legendgroup='Mean',
                mode='lines', line=dict(color=netflix_color, width=width, dash='dash'), showlegend=False),
     go.Scatter(x=[netflix_polarity_median]*2, y=polarity_y_range, name='Netflix Median', legendgroup='Median',
@@ -437,7 +434,7 @@ polarity_mean_median_lines = [
     go.Scatter(x=[prime_subjectivity_median]*2, y=subjectivity_y_range, legendgroup='Median', name='Prime Median',
                showlegend=False, mode='lines', line=dict(color=prime_color, width=width, dash='dot')),
 ]
-for i, elem in enumerate(polarity_mean_median_lines):
+for i, elem in enumerate(mean_median_lines):
     fig.add_trace(elem, row=1, col=int(1 + i/4))
 
 # legends purpose only
@@ -492,29 +489,38 @@ print('Subjectivity p-value', round(p_value_subjectivity, 4))
 
 
 # %% [markdown]
-# As the p-value is less than 0.05, it suggests that the difference between the means of the two distributions is
-# statistically significant, and we can reject the null hypothesis that the two distributions are similar.
-# We can see that this analysis is true for both polarity and subjectivity.
+# As the polarity p-value is less than 0.05, it suggests that the difference between the means of the two distributions
+# is statistically significant, and we can reject the null hypothesis that the two distributions are similar.
+# We see that this analysis is true for both polarity and subjectivity.
 #
-# We will then see in the following of this project, if polarity and subjectivity of overviews can help to determine
+# We will then see in the following of this project, if polarity of overviews can help to determine
 # which streaming service is the best.
+# We didn't keep the subjectivity for the following reason:
+# One idea would have been to select only overviews with low subjectivity score (i.e. objective review). This would
+# have prevent rating of the movies be influenced by a biased overview. However, by looking at the subjectivity
+# distribution, this would have leave us with less than half of the movies which in term of robustness
+# wasn't the best choice as we already conduct our study on roughly ten thousands movies.
+#
+# #### Prepare Dataframe for Observational Study
 
 # %%
 # add the prime_sentiments_polarity and netflix_sentiments_polarity to the dataframe
-df_overview_prime['sentiments_polarity'] = prime_sentiments_polarity
-df_overview_netflix['sentiments_polarity'] = netflix_sentiments_polarity
+df_overview_prime.loc[:, 'sentiments_polarity'] = prime_sentiments_polarity
+df_overview_netflix.loc[:, 'sentiments_polarity'] = netflix_sentiments_polarity
 # add the prime_sentiments_subjectivity and netflix_sentiments_subjectivity to the dataframe
-df_overview_prime['sentiments_subjectivity'] = prime_sentiments_subjectivity
-df_overview_netflix['sentiments_subjectivity'] = netflix_sentiments_subjectivity
-# for each dataframe, remove the tokenized plots, plots_with_POS_tag, lemmatized_plots, plots_without_stopwords
-# columns
-df_overview_prime = df_overview_prime.drop(
-    ['tokenized_plots', 'plots_with_POS_tag', 'lemmatized_plots', 'plots_without_stopwords'], axis=1)
-df_overview_netflix = df_overview_netflix.drop(
-    ['tokenized_plots', 'plots_with_POS_tag', 'lemmatized_plots', 'plots_without_stopwords'], axis=1)
+df_overview_prime.loc[:,
+                      'sentiments_subjectivity'] = prime_sentiments_subjectivity
+df_overview_netflix.loc[:,
+                        'sentiments_subjectivity'] = netflix_sentiments_subjectivity
+# remove the tokenized plots, plots_with_POS_tag, lemmatized_plots, plots_without_stopwords columns
+# as we don't need them for observational study
+df_overview_prime.drop(
+    ['tokenized_plots', 'plots_with_POS_tag', 'lemmatized_plots', 'plots_without_stopwords'], axis=1, inplace=True)
+df_overview_netflix.drop(
+    ['tokenized_plots', 'plots_with_POS_tag', 'lemmatized_plots', 'plots_without_stopwords'], axis=1, inplace=True)
 # concatenate the two dataframes
-df_overview_bis = pd.concat([df_overview_prime, df_overview_netflix])
-df_overview_bis.head()
+df_overview = pd.concat([df_overview_prime, df_overview_netflix])
+df_overview.head()
 
 # %% [markdown]
 # # Observational Study
@@ -524,10 +530,10 @@ df = helper.prepare_df()
 df['genres'] = df['genres'].apply(lambda x: x.split(','))
 df.reset_index(drop=True, inplace=True)
 # merge the original dataframe and the one containing the sentiment analysis
-merged_df = df.merge(df_overview_bis, left_index=True,
+merged_df = df.merge(df_overview, left_index=True,
                      right_index=True, suffixes=('', '_df2'))
 # Get the list of common columns between the two dataframes
-common_columns = list(set(df.columns) & set(df_overview_bis.columns))
+common_columns = list(set(df.columns) & set(df_overview.columns))
 
 # Keep only the column from the first dataframe for each common column
 for col in common_columns:
@@ -772,19 +778,6 @@ df_prime.drop(columns=['on_netflix', 'on_prime'], inplace=True)
 
 
 # %%
-def compute_log_bins(df, num_bins, min_val, max_val):
-    # Compute the logarithmically spaced bins
-    log_bins = np.logspace(np.log10(min_val), np.log10(max_val), num_bins+1)
-
-    # Compute the position, height, and width arrays for the bars
-    position_array = (log_bins[:-1] + log_bins[1:]) / 2
-    height_array = df.groupby(np.digitize(df, log_bins)).count().values
-    width_array = log_bins[1:] - log_bins[:-1]
-
-    return position_array, height_array, width_array
-
-
-# %%
 
 def plot_hist_matching(df_netflix: pd.DataFrame, df_prime: pd.DataFrame, n: int):
     """
@@ -829,37 +822,34 @@ def plot_hist_matching(df_netflix: pd.DataFrame, df_prime: pd.DataFrame, n: int)
                 fig.add_trace(histogram, row=i//2+1, col=i % 2+1)
 
         elif col in ['numVotes']:
-            min_val = min(df_netflix[col].min(), df_prime[col].min())
-            max_val = max(df_netflix[col].max(), df_prime[col].max())
+            # max_x_value = max(df_netflix[col].max(), df_prime[col].max())
+            # bins_logspace = np.logspace(0, np.log10(max_x_value), 40)
 
-            bars_positions_netflix, bins_height_netflix, bins_width_netflix = compute_log_bins(
-                df_netflix[col], 40, min_val, max_val)
-            bars_positions_prime, bins_height_prime, bins_width_prime = compute_log_bins(
-                df_prime[col], 40, min_val, max_val)
-
-            bars = [
-                go.Bar(
-                    x=bars_positions_netflix,
-                    y=bins_height_netflix,
+            histograms = [
+                go.Histogram(
+                    x=df_netflix[col],
                     name='Netflix',
+                    histnorm='probability',
                     legendgroup='Netflix',
                     marker_color=netflix_color,
-                    width=bins_width_netflix,
+                    xaxis='x2',
+                    xbins=dict(start=0, end=10, size=0.1),
+                    # transforms=[dict(type='log')]
                 ),
-                go.Bar(
-                    x=bars_positions_prime,
-                    y=bins_height_prime,
-                    name='Netflix',
+
+                go.Histogram(
+                    x=df_prime[col],
+                    name='Prime',
+                    histnorm='probability',
                     legendgroup='Netflix',
                     marker_color=prime_color,
-                    width=bins_width_prime,
-                )
+                ),
             ]
 
-            for bar in bars:
-                fig.add_trace(bar, row=i//2+1, col=i % 2+1)
+            for histogram in histograms:
+                fig.add_trace(histogram, row=i//2+1, col=i % 2+1)
 
-            fig.update_xaxes(type='log', row=i//2+1, col=i % 2+1)
+            # fig.update_xaxes(type='log', row=i//2+1, col=i % 2+1)
         else:
             # should never happen
             raise ValueError('column not found')
