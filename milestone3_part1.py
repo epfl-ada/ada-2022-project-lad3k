@@ -138,14 +138,14 @@ fig = go.Figure()
 
 fig.add_trace(go.Scatterpolar(
     r=both_genre['nb_movies_netflix'],
-    theta=both_genre['index'],
+    theta=both_genre.index,
     fill='toself',
     name='Netflix',
 
 ))
 fig.add_trace(go.Scatterpolar(
     r=both_genre['nb_movies_prime'],
-    theta=both_genre['index'],
+    theta=both_genre.index,
     fill='toself',
     name='Prime',
 ))
