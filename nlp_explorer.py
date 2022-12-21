@@ -225,6 +225,7 @@ for i in range(1, 3):
         topic_distributions[i][0:5]))
     print('\n')
 
+
 # %% [markdown]
 # Based the description of each topic, we could assign the following names to each one:
 # - Topic 0: **Criminal Investigation**
@@ -241,9 +242,6 @@ for i in range(1, 3):
 # - Topic 11: **Crime and Gangs**
 #
 # ### Visualizing words of topics
-
-# %%
-
 
 # %%
 def show_wordcloud(data):

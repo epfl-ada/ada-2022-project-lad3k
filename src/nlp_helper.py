@@ -1,5 +1,5 @@
-from gensim import models
 from gensim import corpora
+from gensim import models
 from nltk.corpus import wordnet
 
 
@@ -69,13 +69,13 @@ def create_lda_model(corpus, dictionary, num_topics=10, passes=10):
     return lda_model
 
 
-def get_topics(lda_model, num_topics=15, num_words=13):
+def get_topics(lda_model, num_topics, num_words):
     """Get the topics from a LDA model
 
     Args:
         lda_model (gensim.models.LdaModel): LdaModel used for topic extraction
-        num_topics (int, optional): number of topics we want to extract. Defaults to 15.
-        num_words (int, optional): number of words to represent a topic. Defaults to 13.
+        num_topics (int): number of topics we want to extract.
+        num_words (int): number of words to represent a topic.
 
     Returns:
         list: list of topics, one topic is an array of num_words words
