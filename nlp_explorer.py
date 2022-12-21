@@ -813,6 +813,99 @@ for col in ['numVotes', 'runtimeMinutes', 'sentiments_polarity', 'release_year']
 
 
 # %%
+
+def plot_hist_matching(df_netflix: pd.DataFrame, df_prime: pd.DataFrame):
+    """
+    Plot the histogram of the matching features on Netflix and Prime
+
+    Args:
+        df_netflix (pd.DataFrame): The dataframe containing the data for Netflix
+        df_prime (pd.DataFrame): The dataframe containing the data for Prime
+    """
+
+    columns_to_plot = ['numVotes', 'release_year',
+                       'runtimeMinutes', 'sentiments_polarity']
+
+    fig = make_subplots(rows=2, cols=2, subplot_titles=columns_to_plot)
+
+    for i, col in enumerate(columns_to_plot):
+        if col in ['release_year', 'runtimeMinutes', 'sentiments_polarity']:
+            histograms = [
+                go.Histogram(
+                    x=df_netflix[col],
+                    name='Netflix',
+                    histnorm='probability',
+                    legendgroup='Netflix',
+                    marker_color=netflix_color,
+                    bingroup=col,
+                    showlegend=False,
+                ),
+                go.Histogram(
+                    x=df_prime[col],
+                    name='Prime',
+                    histnorm='probability',
+                    legendgroup='Prime',
+                    marker_color=prime_color,
+                    bingroup=col,
+                    showlegend=False,
+                ),
+            ]
+
+            for histogram in histograms:
+                fig.add_trace(histogram, row=i//2+1, col=i % 2+1)
+
+        elif col in ['numVotes']:
+            # max_x_value = max(df_netflix[col].max(), df_prime[col].max())
+            # bins_logspace = np.logspace(0, np.log10(max_x_value), 40)
+
+            histograms = [
+                go.Histogram(
+                    x=df_netflix[col],
+                    name='Netflix',
+                    histnorm='probability',
+                    legendgroup='Netflix',
+                    marker_color=netflix_color,
+                    xaxis='x2',
+                    xbins=dict(start=0, end=10, size=0.1),
+                    # transforms=[dict(type='log')]
+                ),
+
+                go.Histogram(
+                    x=df_prime[col],
+                    name='Prime',
+                    histnorm='probability',
+                    legendgroup='Netflix',
+                    marker_color=prime_color,
+                ),
+            ]
+
+            for histogram in histograms:
+                fig.add_trace(histogram, row=i//2+1, col=i % 2+1)
+
+            # fig.update_xaxes(type='log', row=i//2+1, col=i % 2+1)
+        else:
+            # should never happen
+            raise ValueError('column not found')
+
+    fig.update_layout(barmode='overlay')
+    fig.update_traces(opacity=0.5)
+    fig.show()
+
+
+plot_hist_matching(df_netflix, df_prime)
+# compute some statistics to see if the distributions are different
+for col in ['numVotes', 'runtimeMinutes', 'sentiments_polarity', 'release_year']:
+    t_statistic_polarity, p_value_polarity = ttest_ind(
+        df_prime[col], df_netflix[col], equal_var=False)
+    print(f'{col}: t-statistic: {round(t_statistic_polarity, 2)}, p-value: {round(p_value_polarity,2)}')
+
+
+# %% [markdown]
+# We see that all p-values are lower than the treshold of 0.05. We can reject our null hypothesis that the distibutions
+# of netflix and prime are equal for each feature. We will see if we can matched the film between prime and netflix
+# to obtain the same distribution for each feature.
+
+# %%
 def plot_genre_distribution(df_netflix: pd.DataFrame, df_prime: pd.DataFrame):
     """Plot the genre distribution on Netflix and Prime
 
