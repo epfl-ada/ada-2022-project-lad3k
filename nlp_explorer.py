@@ -14,33 +14,37 @@
 #     language: python
 #     name: python3
 # ---
-
 # %%
-from tqdm import tqdm
-import networkx as nx
-from sklearn.metrics import classification_report
-import statsmodels.formula.api as smf
-from sklearn.preprocessing import MultiLabelBinarizer
-import pandas as pd
-import seaborn as sns
-from src import helper
-from scipy.stats import ttest_ind
-from textblob import TextBlob
-import matplotlib.pyplot as plt
-import nltk
-import string
-import numpy as np
-from nltk import pos_tag
-from gensim.models import Phrases
-from nltk.corpus import stopwords
-from src.helper import prepare_df
-from src.nlp_helper import get_wordnet_pos, build_dictionnary_and_corpus,\
-    create_lda_model, get_topics, get_topic_distribution
-from nltk.tokenize import word_tokenize
-from nltk.stem.wordnet import WordNetLemmatizer
 import math
+import string
+
+import matplotlib.pyplot as plt
+import networkx as nx
+import nltk
+import numpy as np
+import pandas as pd
 import plotly.graph_objs as go
+import seaborn as sns
+import statsmodels.formula.api as smf
+from gensim.models import Phrases
+from nltk import pos_tag
+from nltk.corpus import stopwords
+from nltk.stem.wordnet import WordNetLemmatizer
+from nltk.tokenize import word_tokenize
 from plotly.subplots import make_subplots
+from scipy.stats import ttest_ind
+from sklearn.metrics import classification_report
+from sklearn.preprocessing import MultiLabelBinarizer
+from textblob import TextBlob
+from tqdm import tqdm
+
+from src import helper
+from src.helper import prepare_df
+from src.nlp_helper import build_dictionnary_and_corpus
+from src.nlp_helper import create_lda_model
+from src.nlp_helper import get_topic_distribution
+from src.nlp_helper import get_topics
+from src.nlp_helper import get_wordnet_pos
 
 
 nltk.download('wordnet')
@@ -351,87 +355,70 @@ netflix_sentiments_polarity = [
 netflix_sentiments_subjectivity = [
     sentiment.subjectivity for sentiment in netflix_sentiments]
 
-# divide prime_sentiments_polarity into 20 bins and compute the number of movies in each bin
-# then divide by the total number of movies to get the distribution
-prime_sentiments_polarity_dist = np.histogram(
-    prime_sentiments_polarity, bins=20)[0] / len(prime_sentiments_polarity)
-netflix_sentiments_polarity_dist = np.histogram(
-    netflix_sentiments_polarity, bins=20)[0] / len(netflix_sentiments_polarity)
-prime_sentiments_subjectivity_dist = np.histogram(
-    prime_sentiments_subjectivity, bins=20)[0] / len(prime_sentiments_subjectivity)
-netflix_sentiments_subjectivity_dist = np.histogram(
-    netflix_sentiments_subjectivity, bins=20)[0] / len(netflix_sentiments_subjectivity)
-
 netflix_color = '#636EFA'
 prime_color = '#FFA15A'
 
-
-bar_width = 1.0
 fig = make_subplots(rows=1, cols=2,
                     subplot_titles=('sentiment polarity distribution', 'sentiment subjectivity distribution'))
-data_polarity = [
-    go.Bar(name='Netflix', x=list(range(-10, 11)), y=netflix_sentiments_polarity_dist, width=bar_width,
-           marker_color=netflix_color, opacity=0.5),
-    go.Bar(name='Prime', x=list(range(-10, 11)), y=prime_sentiments_polarity_dist, width=bar_width,
-           marker_color=prime_color, opacity=0.5)
+data = [
+    go.Histogram(name='Netflix', x=netflix_sentiments_polarity, marker_color=netflix_color, opacity=0.5,
+                 histnorm='probability', xbins=dict(start=-1, end=1, size=0.1), legendgroup='Netflix'),
+    go.Histogram(name='Prime', x=prime_sentiments_polarity, marker_color=prime_color, opacity=0.5,
+                 histnorm='probability', xbins=dict(start=-1, end=1, size=0.1)),
+    go.Histogram(name='Netflix', x=netflix_sentiments_subjectivity, marker_color=netflix_color, opacity=0.5,
+                 histnorm='probability', xbins=dict(start=0, end=1, size=0.05), showlegend=False,
+                 legendgroup='Netflix'),
+    go.Histogram(name='Prime', x=prime_sentiments_subjectivity, marker_color=prime_color, opacity=0.5,
+                 histnorm='probability', xbins=dict(start=0, end=1, size=0.05), showlegend=False),
 ]
-data_subjectivity = [
-    go.Bar(name='Netflix', x=list(range(21)), y=netflix_sentiments_subjectivity_dist, width=bar_width,
-           marker_color=netflix_color, opacity=0.5, showlegend=False),
-    go.Bar(name='Prime', x=list(range(21)), y=prime_sentiments_subjectivity_dist, width=bar_width,
-           marker_color=prime_color, opacity=0.5, showlegend=False)
-]
-fig.add_traces(data_polarity, rows=1, cols=1)
-fig.add_traces(data_subjectivity, rows=1, cols=2)
+for i, elem in enumerate(data):
+    fig.add_trace(elem, row=1, col=int(1 + i/2))
 
 # compute mean and median for each distribution for each service
 netflix_polarity_mean = np.mean(netflix_sentiments_polarity)
 netflix_polarity_median = np.median(netflix_sentiments_polarity)
 prime_polarity_mean = np.mean(prime_sentiments_polarity)
 prime_polarity_median = np.median(prime_sentiments_polarity)
-print(f'Netflix polarity mean: {netflix_polarity_mean:.2f}')
-print(f'Netflix polarity median: {netflix_polarity_median:.2f}')
-print(f'Prime polarity mean: {prime_polarity_mean:.2f}')
-print(f'Prime polarity median: {prime_polarity_median:.2f}')
-# add 0.1 to the x value to avoid overlapping with the bars
-# data = [go(x=[netflix_polarity_mean+0.1], y=[0.33], mode='markers', marker=dict(color='blue', size=10),\
-#         name='Netflix Mean'),
-#         go.Scatter(x=[netflix_polarity_median+0.1], y=[0.33], mode='markers', marker=dict(color='blue', size=10),\
-#         name='Netflix Median')
-#     ]
-# fig.add_traces(data, rows=1, cols=1)
+netflix_subjectivity_mean = np.mean(netflix_sentiments_subjectivity)
+netflix_subjectivity_median = np.median(netflix_sentiments_subjectivity)
+prime_subjectivity_mean = np.mean(prime_sentiments_subjectivity)
+prime_subjectivity_median = np.median(prime_sentiments_subjectivity)
+# polarity mean and median
+polarity_y_range = [0, 0.31]
+subjectivity_y_range = [0, 0.12]
+width = 1
+polarity_mean_median_lines = [
+    go.Scatter(x=[netflix_polarity_mean]*2, y=polarity_y_range, name='Mean', legendgroup='Mean',
+               mode='lines', line=dict(color=netflix_color, width=width, dash='dot')),
+    go.Scatter(x=[netflix_polarity_median]*2, y=polarity_y_range, name='Median', legendgroup='Median',
+               mode='lines', line=dict(color=netflix_color, width=width, dash='dashdot')),
+    go.Scatter(x=[prime_polarity_mean]*2, y=polarity_y_range, mode='lines', name='Prime Mean',
+               line=dict(color=prime_color, width=width, dash='dot'), legendgroup='Mean',
+               showlegend=False),
+    go.Scatter(x=[prime_polarity_median]*2, y=polarity_y_range, legendgroup='Median', showlegend=False,
+               name='Prime Median', mode='lines', line=dict(color=prime_color, width=width, dash='dashdot')),
+    go.Scatter(x=[netflix_subjectivity_mean]*2, y=subjectivity_y_range, legendgroup='Mean', name='Netflix Mean',
+               showlegend=False, mode='lines', line=dict(color=netflix_color, width=width, dash='dot')),
+    go.Scatter(x=[netflix_subjectivity_median]*2, y=subjectivity_y_range, legendgroup='Median', name='Netflix Median',
+               showlegend=False, mode='lines', line=dict(color=netflix_color, width=width, dash='dashdot')),
+    go.Scatter(x=[prime_subjectivity_mean]*2, y=subjectivity_y_range, legendgroup='Mean', name='Prime Mean',
+               showlegend=False, mode='lines', line=dict(color=prime_color, width=width, dash='dot')),
+    go.Scatter(x=[prime_subjectivity_median]*2, y=subjectivity_y_range, legendgroup='Median', name='Prime Median',
+               showlegend=False, mode='lines', line=dict(color=prime_color, width=width, dash='dashdot')),
+]
+for i, elem in enumerate(polarity_mean_median_lines):
+    fig.add_trace(elem, row=1, col=int(1 + i/4))
 
-
-# fig.add_shape(type='line', x0=netflix_polarity_mean+0.1, x1=netflix_polarity_mean+0.1, y0=0, y1=0.33,\
-#    name='Netflix Mean', row=1, col=1, line=dict(color='blue', width=1, dash='dash'))
-
-
-x_tick_values_polarity = list(range(-10, 11))
-x_tick_values_subjectivity = list(range(21))
-x_tick_labels_polarity = [f'{i / 10:.1f}' for i in x_tick_values_polarity]
-x_tick_labels_subjectivity = [
-    f'{i / 20:.2f}' for i in x_tick_values_subjectivity]
-fig.update_layout(
-    height=500,
-    xaxis=dict(tickvals=x_tick_values_polarity,
-               ticktext=x_tick_labels_polarity, tickangle=-90),
-    yaxis=dict(title='density'),
-    legend_orientation='h',
-    legend=dict(x=1, y=1)
-)
-fig.update_xaxes(tickvals=x_tick_values_subjectivity,
-                 ticktext=x_tick_labels_subjectivity, tickangle=-90, row=1, col=2)
-fig.update_yaxes(title_text='density', row=1, col=2)
-fig.update_xaxes(title_text='sentiment polarity', row=1, col=1)
-fig.update_xaxes(title_text='sentiment subjectivity', row=1, col=2)
 fig.update_layout(barmode='overlay')
+for i, name in enumerate(['Polarity', 'Subjectivity'], start=1):
+    fig.update_xaxes(title_text='{} value'.format(name), row=1, col=i)
+    fig.update_yaxes(title_text='probability', row=1, col=i)
 fig.show()
-
 
 # %% [markdown]
 # From these graphs, we see that the polarity is a little bit higher than 0 for both streaming services. It would
 # also seems that Prime have movies with a lower polarity than Netflix, i.e. Prime movies overviews would have a
-# more "negative" sentiment. For subjectivity, we see both distributions have roughly the same distribution. We also see
+# more "negative" sentiment. For subjectivity, we see both distributions seems roughly equal. We also see
 # that Prime seems to have more "objective" movies overview than Neflix. Netflix on its side seems to have a little bit
 # more "subjective" overviews.
 
