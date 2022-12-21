@@ -14,33 +14,37 @@
 #     language: python
 #     name: python3
 # ---
-
 # %%
-from tqdm import tqdm
-import networkx as nx
-from sklearn.metrics import classification_report
-import statsmodels.formula.api as smf
-from sklearn.preprocessing import MultiLabelBinarizer
-import pandas as pd
-import seaborn as sns
-from src import helper
-from scipy.stats import ttest_ind
-from textblob import TextBlob
-import matplotlib.pyplot as plt
-import nltk
-import string
-import numpy as np
-from nltk import pos_tag
-from gensim.models import Phrases
-from nltk.corpus import stopwords
-from src.helper import prepare_df
-from src.nlp_helper import get_wordnet_pos, build_dictionnary_and_corpus,\
-    create_lda_model, get_topics, get_topic_distribution
-from nltk.tokenize import word_tokenize
-from nltk.stem.wordnet import WordNetLemmatizer
 import math
+import string
+
+import matplotlib.pyplot as plt
+import networkx as nx
+import nltk
+import numpy as np
+import pandas as pd
 import plotly.graph_objs as go
+import seaborn as sns
+import statsmodels.formula.api as smf
+from gensim.models import Phrases
+from nltk import pos_tag
+from nltk.corpus import stopwords
+from nltk.stem.wordnet import WordNetLemmatizer
+from nltk.tokenize import word_tokenize
 from plotly.subplots import make_subplots
+from scipy.stats import ttest_ind
+from sklearn.metrics import classification_report
+from sklearn.preprocessing import MultiLabelBinarizer
+from textblob import TextBlob
+from tqdm import tqdm
+
+from src import helper
+from src.helper import prepare_df
+from src.nlp_helper import build_dictionnary_and_corpus
+from src.nlp_helper import create_lda_model
+from src.nlp_helper import get_topic_distribution
+from src.nlp_helper import get_topics
+from src.nlp_helper import get_wordnet_pos
 
 
 nltk.download('wordnet')
@@ -430,8 +434,9 @@ fig.update_layout(
                ticktext=x_tick_labels_polarity, tickangle=-90),
     yaxis=dict(title='density'),
     legend_orientation='h',
-    legend=dict(x=2.0, y=1, xanchor='right', yanchor='top')
+    legend=dict(x=0.85, y=1.0)
 )
+fig.update_layout(legend_tracegroupgap=1)
 fig.update_xaxes(tickvals=x_tick_values_subjectivity,
                  ticktext=x_tick_labels_subjectivity, tickangle=-90, row=1, col=2)
 fig.update_yaxes(title_text='density', row=1, col=2)
