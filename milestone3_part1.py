@@ -9,7 +9,7 @@
 #       format_version: '1.3'
 #       jupytext_version: 1.11.2
 #   kernelspec:
-#     display_name: ada_project
+#     display_name: ada_hw2
 #     language: python
 #     name: python3
 # ---
@@ -129,8 +129,9 @@ plt.show()
 
 # %%
 
-categories = ['processing cost', 'mechanical properties', 'chemical stability',
-              'thermal stability', 'device integration']
+both_genre = both_genre[:10]
+both_genre = both_genre.reset_index()
+both_genre = both_genre.sample(frac=1)
 
 
 fig = go.Figure()
