@@ -9,7 +9,7 @@
 #       format_version: '1.3'
 #       jupytext_version: 1.11.2
 #   kernelspec:
-#     display_name: ada_hw2
+#     display_name: ada_project
 #     language: python
 #     name: python3
 # ---
@@ -19,10 +19,14 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import pycountry
 from scipy.stats import bootstrap
 from scipy.stats import ttest_ind
 
 from src.helper import prepare_df
+
+netflix_color = '#636EFA'
+prime_color = '#FFA15A'
 # %%
 
 # %%
@@ -138,16 +142,18 @@ fig = go.Figure()
 
 fig.add_trace(go.Scatterpolar(
     r=both_genre['nb_movies_netflix'],
-    theta=both_genre.index,
+    theta=both_genre['index'],
     fill='toself',
     name='Netflix',
+    marker_color=netflix_color
 
 ))
 fig.add_trace(go.Scatterpolar(
     r=both_genre['nb_movies_prime'],
-    theta=both_genre.index,
+    theta=both_genre['index'],
     fill='toself',
     name='Prime',
+    marker_color=prime_color
 ))
 
 fig.update_traces(fill='toself')
@@ -171,7 +177,8 @@ fig.update_layout(
         'xanchor': 'center',
         'yanchor': 'top'})
 
-
+# generate html file
+fig.write_html('radar.html')
 fig.show()
 
 
@@ -491,6 +498,11 @@ df_prod_countrie = df_prod_countrie[df_prod_countrie['production_countries'] != 
 df_prod_countrie = df_prod_countrie[df_prod_countrie['production_countries'] != 'AN']
 
 # %%
+# iso2 to iso3
+df_prod_countrie['production_countries'] = df_prod_countrie['production_countries'].apply(
+    lambda x: pycountry.countries.get(alpha_2=x).alpha_3)
+
+# %%
 fig = px.scatter_geo(df_prod_countrie, locations='production_countries', color='streaming_service',
                      hover_name='production_countries', size='size',
                      projection='natural earth')
@@ -498,14 +510,18 @@ fig = px.scatter_geo(df_prod_countrie, locations='production_countries', color='
 
 fig.show()
 
-# fig.write_html("worldmap.html")
+fig.write_html('worldmap.html')
 
 # %%
 df_prod_countrie
 
 # %%
-test = (df_prod_countrie['Netflix'],)
-bootstrap(test, np.median, method='percentile').confidence_interval.low
+fig = px.scatter_geo(df_prod_countrie, locations='production_countries', color='streaming_service',
+                     hover_name='production_countries', size='size',
+                     projection='natural earth')
+
+
+fig.show()
 
 
 # %%
@@ -632,5 +648,35 @@ df_directors = df_directors.sort_values(by='sum', ascending=False)
 # drop the column 'sum'
 df_directors = df_directors.drop(columns=['sum'])
 
+# dataframe of the directors with the names
+df_directors_names = pd.read_csv(
+    'data/IMDb/name.basics.tsv.gz', sep='\t', compression='gzip')
+# merge df_directors with df_directors_names on the nconst and index
+df_directors = df_directors.merge(
+    df_directors_names, left_index=True, right_on='nconst')
+df_directors = df_directors[['primaryName', 'Netflix', 'Prime']]
+
 df_directors[:20].plot(
     kind='bar', title='Number of movies per director in Netflix and Prime', figsize=(10, 5))
+
+# %%
+# plot directors_netflix and directors_prime using plotly using the same x-axis values
+_prime = df_directors[:20].Netflix
+_netflix = df_directors[:20].Prime
+_idx = df_directors[:20].primaryName
+# plot netflix and prime on the same plot netflix using orange and blue
+fig = go.Figure()
+fig.add_trace(go.Bar(x=_idx, y=_prime, name='Prime', marker_color=prime_color))
+fig.add_trace(go.Bar(x=_idx, y=_netflix, name='Netflix',
+              marker_color=netflix_color))
+fig.update_layout(barmode='group')
+# title of the plot
+fig.update_layout(
+    title_text='Density of movies per director in Netflix and Prime')
+fig.show()
+# generate html of the plot
+fig.write_html('directors.html')
+
+# %%
+
+# %%
