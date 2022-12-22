@@ -249,7 +249,12 @@ def plot_distribution(df: pd.DataFrame, column: str):
     df['on_netflix'] = df['on_netflix'].astype(bool)
     df['on_prime'] = df['on_prime'].astype(bool)
 
-    def _plt_hist(bins=20, is_netflix=True, log=False):
+    def _plt_hist(bins=None, is_netflix=True, log=False):
+        if bins is None:
+            min_value = min(df[column])
+            max_value = max(df[column])
+            bins = np.arange(min_value, max_value, (max_value-min_value)//20)
+
         plt.hist(
             df[df['on_netflix' if is_netflix else 'on_prime']][column],
             bins=bins,
@@ -275,22 +280,22 @@ def plot_distribution(df: pd.DataFrame, column: str):
         plt.xlabel('run rime (min)')
 
     elif column == 'release_year':
-        _plt_hist(bins=20, is_netflix=True, log=True)
-        _plt_hist(bins=20, is_netflix=False, log=True)
+        _plt_hist(is_netflix=True, log=True)
+        _plt_hist(is_netflix=False, log=True)
 
         plt.title('Movie release year distribution on Netflix and Prime')
         plt.xlabel('release year')
 
     if column == 'revenue':
-        _plt_hist(bins=20, is_netflix=True, log=True)
-        _plt_hist(bins=20, is_netflix=False, log=True)
+        _plt_hist(is_netflix=True, log=True)
+        _plt_hist(is_netflix=False, log=True)
 
         plt.title('Movies revenues distribution on Netflix and Prime')
         plt.xlabel('revenue ($)')
 
     if column == 'numVotes':
-        _plt_hist(bins=20, is_netflix=True, log=True)
-        _plt_hist(bins=20, is_netflix=False, log=True)
+        _plt_hist(is_netflix=True, log=True)
+        _plt_hist(is_netflix=False, log=True)
 
         plt.title('Movies numner of votes on Netflix and Prime')
         plt.xlabel('number of votes')
@@ -510,15 +515,6 @@ df_prod_comp = df_prod_comp.drop(columns=['sum'])
 
 df_prod_comp[1:30].plot(kind='bar', title='Number of movies per production company in Netflix and Prime', figsize=(
     10, 5), color=[NETFLIX_COLOR, PRIME_COLOR])
-
-# %%
-# df_prod_comp = df_prod_comp[(df_prod_comp['Netflix'] > 0) & (df_prod_comp['Prime'] > 0)]
-
-# df_prod_comp[:20].plot(kind='bar', title='Number of movies per production company in Netflix and Prime',
-# figsize=(10, 5), color=[NETFLIX_COLOR, PRIME_COLOR])
-
-# %% [markdown]
-# > There are 900 production companies in common out of 6286. They have very different prodcution companies.
 
 # %%
 # dataframe of the  with the names
@@ -1025,7 +1021,6 @@ fig.show()
 # more "subjective" overviews.
 
 # %%
-
 # Perform a t-test to compare the means of the polarity distributions
 t_statistic_polarity, p_value_polarity = ttest_ind(
     prime_sentiments_polarity, netflix_sentiments_polarity)
