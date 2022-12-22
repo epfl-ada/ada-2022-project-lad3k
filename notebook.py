@@ -599,7 +599,7 @@ fig.show()
 fig.write_html('html/directors.html')
 
 # %%
-# %%nltk.download('wordnet')
+nltk.download('wordnet')
 nltk.download('omw-1.4')
 nltk.download('averaged_perceptron_tagger')
 
@@ -620,13 +620,13 @@ df = prepare_df()
 # #### Tokenization
 
 # %%
-# create a new dataframe where only keep the overview column on_netflix and on_prime
-df_overview = df[['overview', 'on_netflix', 'on_prime']]
+# create a new dataframe where only keep the overview, on_netflix and on_prime columns
+df_overview = df[['overview', 'on_netflix', 'on_prime']].copy()
 # replace the index by a range of number
 df_overview.reset_index(drop=True, inplace=True)
 # Tokenize the overviews
-df_overview['overview'] = df_overview['overview'].astype(str)
-df_overview['tokenized_plots'] = df_overview['overview'].apply(
+df_overview.loc[:, 'overview'] = df_overview['overview'].astype(str)
+df_overview.loc[:, 'tokenized_plots'] = df_overview['overview'].apply(
     lambda movie_plot: word_tokenize(movie_plot))
 df_overview.head()
 
@@ -635,7 +635,7 @@ df_overview.head()
 # we start by assocating a POS tag to each word (i.e if a word is a Noun, Verb, Adjective, etc.)
 
 # %%
-df_overview['plots_with_POS_tag'] = df_overview['tokenized_plots'].apply(
+df_overview.loc[:, 'plots_with_POS_tag'] = df_overview['tokenized_plots'].apply(
     lambda tokenized_plot: pos_tag(tokenized_plot))
 df_overview['plots_with_POS_tag'].head()
 
@@ -645,7 +645,7 @@ df_overview['plots_with_POS_tag'].head()
 # %%
 lemmatizer = WordNetLemmatizer()
 # Lemmatize each word given its POS tag
-df_overview['lemmatized_plots'] = df_overview['plots_with_POS_tag'].apply(
+df_overview.loc[:, 'lemmatized_plots'] = df_overview['plots_with_POS_tag'].apply(
     lambda tokenized_plot: [word[0] if get_wordnet_pos(word[1]) == ''
                             else lemmatizer.lemmatize(word[0], get_wordnet_pos(word[1]))
                             for word in tokenized_plot])
@@ -662,16 +662,16 @@ all_stopwords = stopwords.words(
 
 # %%
 # remove the white space inside each words
-df_overview['plots_without_stopwords'] = df_overview['lemmatized_plots'].apply(
+df_overview.loc[:, 'plots_without_stopwords'] = df_overview['lemmatized_plots'].apply(
     lambda tokenized_plot: [word.strip() for word in tokenized_plot])
 # lowercase all words in each plot
-df_overview['plots_without_stopwords'] = df_overview['plots_without_stopwords'].apply(
+df_overview.loc[:, 'plots_without_stopwords'] = df_overview['plots_without_stopwords'].apply(
     lambda plot: [word.lower() for word in plot])
 # remove stopwords from the plots
-df_overview['plots_without_stopwords'] = df_overview['plots_without_stopwords'].apply(
+df_overview.loc[:, 'plots_without_stopwords'] = df_overview['plots_without_stopwords'].apply(
     lambda plot: [word for word in plot if word not in all_stopwords])
 # remove word if contains other letter than a-z or is a single character
-df_overview['plots_without_stopwords'] = df_overview['plots_without_stopwords'].apply(
+df_overview.loc[:, 'plots_without_stopwords'] = df_overview['plots_without_stopwords'].apply(
     lambda plot: [word for word in plot if word.isalpha() and len(word) > 1])
 df_overview['plots_without_stopwords'].head()[:3]
 
@@ -691,7 +691,7 @@ print(f'Number of unique words: {len(word_dist)}')
 rare_words = [word for word, count in word_dist.items() if count == 1]
 print(f'Number of words appearing once: {len(rare_words)}')
 # remove words appearing only once.
-df_overview['plots_without_stopwords'] = df_overview['plots_without_stopwords'].apply(
+df_overview.loc[:, 'plots_without_stopwords'] = df_overview['plots_without_stopwords'].apply(
     lambda plot: [word for word in plot if word not in rare_words])
 df_overview['plots_without_stopwords'].head()[:3]
 
@@ -730,7 +730,6 @@ def train_LDA(tokens, n_topics, n_passes, no_below, no_above, n_words):
         tuple: A tuple containing the trained LDA model, a list of topics, a list of topic distributions
          for each document, and the corpus used to fit the model.
     """
-    np.random.seed(42)
     dictionary, corpus = build_dictionnary_and_corpus(
         tokens, no_below=no_below, no_above=no_above)
     lda_model = create_lda_model(corpus, dictionary, n_topics)
@@ -790,6 +789,7 @@ for i, topic in enumerate(topics):
 # %%
 # for each movie plot, get its topic distribution (i.e the probability of each topic in descending order)
 topic_distributions = get_topic_distribution(lda_model, corpus)
+# plot some movies distributions
 for i in [7, 11, 59]:
     print('Movie plot: {}'.format(df_overview['overview'].iloc[i]))
     print('Topic distribution for the first movie plot: {}'.format(
@@ -820,7 +820,6 @@ for i, mask in enumerate([alice_mask, love_mask, investigation_mask]):
     axes[i].imshow(wc, interpolation='bilinear')
     axes[i].axis('off')
 # save the figure
-# give black background to the figure
 fig.patch.set_facecolor('white')
 plt.savefig('images/wordcloud.png', dpi=300, bbox_inches='tight')
 
@@ -1043,12 +1042,19 @@ print('Subjectivity p-value', round(p_value_subjectivity, 4))
 # We will then see in the following of this project, if polarity of overviews can help to determine
 # which streaming service is the best.
 # We didn't keep the subjectivity for the following reason:
-# One idea would have been to select only overviews with low subjectivity score (i.e. objective review). This would
+# One idea would have been to select only overviews with low subjectivity score (i.e. objective reviews). This would
 # have prevent rating of the movies be influenced by a biased overview. However, by looking at the subjectivity
 # distribution, this would have leave us with less than half of the movies which in term of robustness
 # wasn't the best choice as we already conduct our study on roughly ten thousands movies.
 #
 # #### Prepare Dataframe for Observational Study
+
+# %%
+# put into a new dataframa a copy of df_overview_prime
+df_overview_prime_save = df_overview_prime.copy()
+
+# %%
+df_overview_prime.loc[:, 'sentiments_polarity'] = prime_sentiments_polarity
 
 # %%
 # add the prime_sentiments_polarity and netflix_sentiments_polarity to the dataframe
@@ -1243,7 +1249,7 @@ def plot_rating_distribution(df: pd.DataFrame, n: int):
     elif n == 2:
         fig.write_html('html/ratings_after_matching.html')
     elif n == 3:
-        fig.write_html('html/ratings_after_matching_director.html')
+        fig.write_html('html/ratings_after_matching_countries.html')
     else:
         raise ValueError('n should be 1, 2 or 3')
     # show the plots
@@ -1436,7 +1442,7 @@ def plot_hist_matching(df_netflix: pd.DataFrame, df_prime: pd.DataFrame, n: int)
     elif n == 2:
         fig.write_html('html/features_after_matching.html')
     elif n == 3:
-        fig.write_html('html/features_after_matching_director.html')
+        fig.write_html('html/features_after_matching_countries.html')
     else:
         raise ValueError('n should be 1, 2 or 3')
     fig.show()
@@ -1497,7 +1503,7 @@ def plot_genre_distribution(df_netflix: pd.DataFrame, df_prime: pd.DataFrame, n:
     elif n == 2:
         fig.write_html('html/genres_after_matching.html')
     elif n == 3:
-        fig.write_html('html/genres_after_matching_director.html')
+        fig.write_html('html/genres_after_matching_countries.html')
     else:
         raise ValueError('n should be 1, 2 or 3')
     fig.show()
