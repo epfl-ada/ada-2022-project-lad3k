@@ -1218,7 +1218,6 @@ def plot_rating_distribution(df: pd.DataFrame, n: int):
     )
 
     # export the fig as html in html folder
-    print(i)
     if n == 1:
         fig.write_html('html/ratings_before_matching.html')
     elif n == 2:
@@ -1233,9 +1232,6 @@ def plot_rating_distribution(df: pd.DataFrame, n: int):
 
 # %%
 plot_rating_distribution(df, 1)
-
-# %%
-df[df['on_prime']]['averageRating'].median()
 
 # %% [markdown]
 # From this first graph, it seems that you are more likely able to find an high rated movie on Netlfix
@@ -1306,6 +1302,20 @@ df_prime.drop(columns=['on_netflix', 'on_prime'], inplace=True)
 
 # %%
 def compute_log_bins(df, num_bins, min_val, max_val):
+    """Compute the bins for a logarithmic histogram.
+
+    Args:
+        df (pd.DataFrame): The dataframe containing the data.
+        num_bins (int): The number of bins.
+        min_val (float): The minimum value of the data.
+        max_val (float): The maximum value of the data.
+
+    Returns:
+        position_array: The position of the bars.
+        height_array: The height of the bars.
+        width_array: The width of the bars.
+    """
+
     # Compute the logarithmically spaced bins
     log_bins = np.logspace(np.log10(min_val), np.log10(max_val), num_bins+1)
 
@@ -1316,9 +1326,8 @@ def compute_log_bins(df, num_bins, min_val, max_val):
 
     return position_array, height_array, width_array
 
+
 # %%
-
-
 def plot_hist_matching(df_netflix: pd.DataFrame, df_prime: pd.DataFrame, n: int):
     """
     Plot the histogram of the matching features on Netflix and Prime
@@ -1332,8 +1341,10 @@ def plot_hist_matching(df_netflix: pd.DataFrame, df_prime: pd.DataFrame, n: int)
 
     columns_to_plot = ['numVotes', 'release_year',
                        'runtimeMinutes', 'sentiments_polarity']
+    columns_names = ['Number of votes', 'Release year',
+                     'Runtime (minutes)', 'Sentiments polarity']
 
-    fig = make_subplots(rows=2, cols=2, subplot_titles=columns_to_plot)
+    fig = make_subplots(rows=2, cols=2, subplot_titles=columns_names)
 
     for i, col in enumerate(columns_to_plot):
         if col in ['release_year', 'runtimeMinutes', 'sentiments_polarity']:
