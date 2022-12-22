@@ -1514,8 +1514,8 @@ def plot_hist_matching(df_netflix: pd.DataFrame, df_prime: pd.DataFrame, n: int)
                 go.Bar(
                     x=bars_positions_prime,
                     y=bins_height_prime,
-                    name='Netflix',
-                    legendgroup='Netflix',
+                    name='Prime',
+                    legendgroup='Prime',
                     marker_color=PRIME_COLOR,
                     width=bins_width_prime,
                 ),
@@ -1858,5 +1858,3 @@ t_statistic_rating, p_value_rating = ttest_ind(
     equal_var=False)
 print(
     f'averageRating: t-statistic: {round(t_statistic_rating, 2)}, p-value: {round(p_value_rating,2)}')
-
-# %%
