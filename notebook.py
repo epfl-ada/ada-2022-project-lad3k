@@ -564,6 +564,12 @@ df_directors = pd.concat([directors_netflix, directors_prime], axis=1)
 df_directors.columns = ['Netflix', 'Prime']
 df_directors = df_directors.fillna(0)
 
+# number of directors in common
+print(len(set(netflix_movies['directors'])))
+print(len(set(prime_movies['directors'])))
+print(len(set(netflix_movies['directors']).intersection(
+    prime_movies['directors'])))
+
 # get the sum of the number of movies per production company
 df_directors['sum'] = df_directors['Netflix'] + df_directors['Prime']
 
@@ -579,6 +585,11 @@ df_directors = df_directors.drop(columns=['sum'])
 df_directors = df_directors.merge(
     df_names, left_index=True, right_on='nconst')
 df_directors = df_directors[['primaryName', 'Netflix', 'Prime']]
+
+# %% [markdown]
+# > We only have 355 directors in common between the two platforms. Thus it will be hard to perform
+# on the matching without
+# losing a lot of data.
 
 # %%
 # plot directors_netflix and directors_prime using plotly using the same x-axis values
