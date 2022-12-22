@@ -521,6 +521,9 @@ df_prod_comp[1:30].plot(kind='bar', title='Number of movies per production compa
 # > There are 900 production companies in common out of 6286. They have very different prodcution companies.
 
 # %%
+# dataframe of the  with the names
+df_names = pd.read_csv(
+    'data/IMDb/name.basics.tsv.gz', sep='\t', compression='gzip')
 writers_netflix = pd.Series(netflix_movies['writers']).value_counts(
     sort=True, ascending=False, normalize=True)
 writers_prime = pd.Series(prime_movies['writers']).value_counts(
@@ -541,10 +544,17 @@ df_writers = df_writers.sort_values(by='sum', ascending=False)
 
 # drop the column 'sum'
 df_writers = df_writers.drop(columns=['sum'])
+df_writers = df_writers.merge(
+    df_names, left_index=True, right_on='nconst')
 
-df_writers[:20].plot(
-    kind='bar', title='Number of movies per writer in Netflix and Prime', figsize=(10, 5),
+df_writers = df_writers[['primaryName', 'Netflix', 'Prime']]
+
+df_writers[:20].set_index('primaryName').plot(
+    kind='bar', title='Top 20 movie writers on Netflix and Prime', figsize=(10, 5),
     color=[NETFLIX_COLOR, PRIME_COLOR])
+
+# set x-axis label
+plt.xlabel('Writer Name')
 
 # %%
 directors_netflix = pd.Series(netflix_movies['directors']).value_counts(
@@ -567,18 +577,10 @@ df_directors = df_directors.sort_values(by='sum', ascending=False)
 
 # drop the column 'sum'
 df_directors = df_directors.drop(columns=['sum'])
-
-# dataframe of the directors with the names
-df_directors_names = pd.read_csv(
-    'data/IMDb/name.basics.tsv.gz', sep='\t', compression='gzip')
 # merge df_directors with df_directors_names on the nconst and index
 df_directors = df_directors.merge(
-    df_directors_names, left_index=True, right_on='nconst')
+    df_names, left_index=True, right_on='nconst')
 df_directors = df_directors[['primaryName', 'Netflix', 'Prime']]
-
-df_directors[:20].plot(
-    kind='bar', title='Number of movies per director in Netflix and Prime',
-    figsize=(10, 5), color=[NETFLIX_COLOR, PRIME_COLOR])
 
 # %%
 # plot directors_netflix and directors_prime using plotly using the same x-axis values
@@ -593,7 +595,7 @@ fig.add_trace(go.Bar(x=_idx, y=_netflix, name='Netflix',
 fig.update_layout(barmode='group')
 # title of the plot
 fig.update_layout(
-    title_text='Density of movies per director in Netflix and Prime')
+    title_text='Top 20 movie directors on Netflix and Prime')
 fig.show()
 # generate html of the plot
 fig.write_html('html/directors.html')
