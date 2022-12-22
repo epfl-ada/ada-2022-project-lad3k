@@ -25,7 +25,6 @@ import plotly.express as px
 import plotly.graph_objects as go
 import pycountry
 import seaborn as sns
-import statsmodels.formula.api as smf
 from gensim.models import Phrases
 from nltk import pos_tag
 from nltk.corpus import stopwords
@@ -35,7 +34,11 @@ from PIL import Image
 from plotly.subplots import make_subplots
 from scipy.stats import bootstrap
 from scipy.stats import ttest_ind
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import auc
 from sklearn.metrics import classification_report
+from sklearn.metrics import roc_curve
+from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MultiLabelBinarizer
 from textblob import TextBlob
 from tqdm import tqdm
@@ -189,7 +192,6 @@ netflix_movies
 
 both_genre = both_genre[:10]
 both_genre = both_genre.reset_index()
-both_genre = both_genre.sample(frac=1)
 
 
 fig = go.Figure()
@@ -341,7 +343,7 @@ ttest_ind(netflix_movies['averageRating'], prime_movies['averageRating'],
 # %% [markdown]
 # > The pvalue is smaller than 1%. We can reject the null hypothesis of equal means of average ratings of movies on
 # Netflix and Prime. We can even confirm that the mean of the average rating of movies on Netflix is greater than the
-# mean of the avergae rating movies on Prime. Movies on Netfliy are generally higher rated than movies on Prime.
+# mean of the average rating movies on Prime. Movies on Netfliy are generally higher rated than movies on Prime.
 
 # %%
 # only movies with runtime > 0
@@ -1074,8 +1076,18 @@ df_overview.head()
 
 # %% [markdown]
 # # Observational Study
+#
+# As we have seen in our exploration part, some features aren't equally distributed between Netflix and Prime. The
+# basic rating comparison obtained in exploration part between Prime and Netflix may in consequence be biased,
+# as some features of a movie other
+# than appartenance to Netflix or Prime may have an influence on the movie rating. In order to unbiased our analysis,
+# we will reduce as much as possible the difference of features between movies on Netflix and Prime. We will achieve
+# this by doing a matching.
+#
+# We start by adding our result from NLP (i.e. movie sentiment polarity) in our dataframe
 
 # %%
+
 df = helper.prepare_df()
 df['genres'] = df['genres'].apply(lambda x: x.split(','))
 df.reset_index(drop=True, inplace=True)
@@ -1131,7 +1143,7 @@ def plot_rating_distribution(df: pd.DataFrame, n: int):
         df (pd.DataFrame): The dataframe containing the data,
             must contain the columns 'on_netflix', 'on_prime' and 'averageRating'
         n (int): indicator of html version. 1 means before matching, 2 means after matching,
-         3 means after director matching
+         3 means after country of prod. matching
     """
     # if needed transform binary 'on_netflix' and 'on_prime' to boolean
     df['on_netflix'] = df['on_netflix'].astype(bool)
@@ -1256,13 +1268,46 @@ def plot_rating_distribution(df: pd.DataFrame, n: int):
 # %%
 plot_rating_distribution(df, 1)
 
+
+# %%
+def ttest_ratings(df: pd.DataFrame) -> None:
+    """Perform a ttest to compare the average rating of movies on Netflix and Prime.
+    Use the greater alternative hypothesis.
+
+    Args:
+        df (pd.DataFrame): dataframe containing the data,
+        must contain the columns 'on_netflix', 'on_prime' and 'averageRating'
+    """
+    t_statistic_rating, p_value_rating = ttest_ind(
+        df[df['on_netflix']]['averageRating'], df[df['on_prime']]['averageRating'],
+        equal_var=False, alternative='greater')
+    print(
+        f'averageRating: t-statistic: {round(t_statistic_rating, 2)}, p-value: {round(p_value_rating,2)}')
+
+
+# %%
+ttest_ratings(df)
+
 # %% [markdown]
-# From this first graph, it seems that you are more likely able to find an high rated movie on Netlfix
+# As we can see from the test, the p-value is lower than our 0.05 treshold. As we are testing the 'greater' alternative,
+# this means that Netflix has better ratings than Prime.
+# From the graph we could also infer that you are more likely able to find an high rated movie on Netlfix
 # than on Amazon Prime.
+#
+# Now we will experience a more robust comparison.
 
 # %% [markdown]
 # # Matching based on propensity score
 # First we'll create an adapted dataframe with only the variables we want to use for the matching.
+#
+# From exploration part, we decided to keep the following movie features:
+# - averageRating
+# - numVotes
+# - release_year
+# - runtimeMinutes
+# - sentiments_polarity
+# - genres
+# - production_countries
 #
 
 # %%
@@ -1310,7 +1355,7 @@ matching_df.head()
 
 # %%
 # pairplot but only with averageRating
-sns.pairplot(df[['averageRating', 'numVotes', 'directors',
+sns.pairplot(df[['averageRating', 'numVotes',
                  'release_year', 'runtimeMinutes', 'streaming_service', 'sentiments_polarity']],
              hue='streaming_service', palette=[NETFLIX_COLOR, PRIME_COLOR, 'green'])
 plt.show()
@@ -1344,6 +1389,7 @@ def compute_log_bins(df, num_bins, min_val, max_val):
 
     # Compute the position, height, and width arrays for the bars
     position_array = (log_bins[:-1] + log_bins[1:]) / 2
+    # we used np.digitize to split our data into bins
     height_array = df.groupby(np.digitize(df, log_bins)).count().values
     width_array = log_bins[1:] - log_bins[:-1]
 
@@ -1359,7 +1405,7 @@ def plot_hist_matching(df_netflix: pd.DataFrame, df_prime: pd.DataFrame, n: int)
         df_netflix (pd.DataFrame): The dataframe containing the data for Netflix
         df_prime (pd.DataFrame): The dataframe containing the data for Prime
         n (int): indicator of html version. 1 means before matching, 2 means after matching,
-         3 means after director matching
+         3 means after country of prod. matching
     """
 
     columns_to_plot = ['numVotes', 'release_year',
@@ -1466,7 +1512,7 @@ def plot_genre_distribution(df_netflix: pd.DataFrame, df_prime: pd.DataFrame, n:
         df_netflix (pd.DataFrame): The dataframe containing the data for Netflix
         df_prime (pd.DataFrame): The dataframe containing the data for Prime
         n (int): indicator of html version. 1 means before matching, 2 means after matching,
-         3 means after director matching
+         3 means after country of prod. matching
     """
     # for each genre, compute the number of movies on Netflix and Prime
     netflix_categories_dist = df_netflix[genres].sum() / len(df_netflix)
@@ -1509,11 +1555,6 @@ def plot_genre_distribution(df_netflix: pd.DataFrame, df_prime: pd.DataFrame, n:
 plot_genre_distribution(df_netflix, df_prime, 1)
 
 # %% [markdown]
-# We see that all p-values are lower than the treshold of 0.05. We can reject our null hypothesis that the distibutions
-# of netflix and prime are equal for each feature. We will see if we can matched the film between prime and netflix
-# to obtain the same distribution for each feature.
-
-# %% [markdown]
 # We'll now compute a propensity score for each observation using a logistic regression.
 
 # %%
@@ -1527,21 +1568,36 @@ for feature in features_to_normalize:
 matching_df.columns
 
 # %%
-model = smf.logit(formula='on_netflix ~ normalized_numVotes + normalized_release_year + '
-                  'normalized_runtimeMinutes + sentiments_polarity',
-                  data=matching_df)
+# we train a random forest classifier in order to predict if a movie is on Netflix or not
+X = matching_df[['normalized_numVotes', 'normalized_release_year',
+                 'normalized_runtimeMinutes', 'sentiments_polarity']]
+y = matching_df['on_netflix']
+# we use a large test data set to have a good estimate of the performance and try to avoid overfitting
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.5, random_state=42)
+# we use a low max_depth to avoid overfitting
+rf = RandomForestClassifier(n_estimators=100, max_depth=20, random_state=42)
+rf.fit(X_train, y_train)
+matching_df['predicted_netflix'] = rf.predict_proba(X)[:, 1]
+print(classification_report(y_test, rf.predict(X_test)))
+# plot the ROC curve
+fpr, tpr, thresholds = roc_curve(y, matching_df['predicted_netflix'])
+roc_auc = auc(fpr, tpr)
+plt.figure()
+lw = 2
+plt.plot(fpr, tpr, color='darkorange',
+         lw=lw, label='ROC curve (area = %0.2f)' % roc_auc)
+plt.plot([0, 1], [0, 1], color='navy', lw=lw, linestyle='--')
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('Receiver operating characteristic')
+plt.legend(loc='lower right')
+plt.show()
 
-res = model.fit()
-matching_df['predicted_netflix'] = res.predict(matching_df)
-
-print(res.summary())
-
-
-# %%
-# generate a report on the classification
-print(classification_report(matching_df['on_netflix'], matching_df['predicted_netflix'].apply(
-    lambda x: 1 if x > 0.5 else 0)))
-
+# %% [markdown]
+# As we can see our model achieve decent performances, as we have a ROC curve area of 0.93.
 
 # %%
 # update df with the predicted probability of being on netflix
@@ -1571,11 +1627,11 @@ def get_similarity(propensity_score1, propensity_score2):
     """
     return 1-np.abs(propensity_score1-propensity_score2)
 
-
 # %%
+# TODO remove for submission
 # only keep 20%
-df_netflix = df_netflix.sample(frac=0.2)
-df_prime = df_prime.sample(frac=0.2)
+# df_netflix = df_netflix.sample(frac=0.2)
+# df_prime = df_prime.sample(frac=0.2)
 
 
 # %%
@@ -1659,18 +1715,13 @@ plot_genre_distribution(df_netflix, df_prime, 2)
 plot_rating_distribution(balanced_df, 2)
 
 # %%
-t_statistic_rating, p_value_rating = ttest_ind(
-    balanced_df[balanced_df['on_prime']
-                ]['averageRating'], balanced_df[balanced_df['on_netflix']]['averageRating'],
-    equal_var=False)
-print(
-    f'averageRating: t-statistic: {round(t_statistic_rating, 2)}, p-value: {round(p_value_rating,2)}')
+ttest_ratings(balanced_df)
+
+# %% [markdown]
+# # TODO analysis of results
 
 # %% [markdown]
 # We now redo the same analysis as before, but this time we'll do a perfect matching also on the production country.
-
-# %%
-netflix_row
 
 # %%
 mask_netflix_only = (matching_df['on_netflix'] == 1) & (
@@ -1684,9 +1735,10 @@ df_netflix.drop(columns=['on_netflix', 'on_prime'], inplace=True)
 df_prime = matching_df[mask_prime_only].copy()
 df_prime.drop(columns=['on_netflix', 'on_prime'], inplace=True)
 
+# TODO remove for final submission
 # only keep 20%
-df_netflix = df_netflix.sample(frac=0.2)
-df_prime = df_prime.sample(frac=0.2)
+# df_netflix = df_netflix.sample(frac=0.2)
+# df_prime = df_prime.sample(frac=0.2)
 
 # create a set of genres for each movie, to make comparisons faster (>50x faster)
 df_netflix['genres'] = df_netflix[genres].apply(
@@ -1754,9 +1806,11 @@ for col in ['numVotes', 'runtimeMinutes', 'sentiments_polarity', 'release_year']
 plot_rating_distribution(balanced_df, 3)
 
 # %%
-t_statistic_rating, p_value_rating = ttest_ind(
-    balanced_df[balanced_df['on_prime']
-                ]['averageRating'], balanced_df[balanced_df['on_netflix']]['averageRating'],
-    equal_var=False)
-print(
-    f'averageRating: t-statistic: {round(t_statistic_rating, 2)}, p-value: {round(p_value_rating,2)}')
+ttest_ratings(balanced_df)
+
+# %% [markdown]
+# # TODO
+# analyze result and conclude
+
+# %% [markdown]
+#
