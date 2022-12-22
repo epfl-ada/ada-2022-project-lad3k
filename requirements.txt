@@ -85,6 +85,7 @@ psutil==5.9.4
 ptyprocess==0.7.0
 pure-eval==0.2.2
 pycodestyle==2.9.1
+pycountry==22.3.5
 pycparser==2.21
 Pygments==2.13.0
 pyLDAvis==3.3.1
