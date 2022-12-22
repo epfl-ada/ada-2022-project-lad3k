@@ -76,6 +76,26 @@ df.head()
 # %% [markdown]
 # Can also check for quality movies and high quality movies the fraction of movies that are in the dataset.
 
+# %%
+# create a new column called platform with Netflix if only 'on_netflix' is True and Prime if only 'on_prime' is True
+#  else 'both'
+df['platform'] = df.apply(lambda x: 'Netflix' if x['on_netflix'] and not x['on_prime']
+                          else 'Prime' if x['on_prime'] and not x['on_netflix'] else 'Both', axis=1)
+
+# %%
+# plot the number of movies on netflix and on prime and on both using the 'platform' column
+fig = px.histogram(df, x='platform', color='platform', color_discrete_map={
+                   'Netflix': NETFLIX_COLOR, 'Prime': PRIME_COLOR, 'Both': 'grey'})
+# shade the color based on the percentage of ratings in the 'averageRating' column
+fig.update_traces(marker_line_color='black', marker_line_width=0, opacity=0.8)
+fig.update_layout(title='Number of movies per platfrom in our dataset',
+                  xaxis_title='Platform', yaxis_title='Number of movies')
+
+
+fig.show()
+# generate html of plotly figure
+fig.write_html('html/number_of_movies_per_platform.html')
+
 # %% [markdown]
 # ### Movies on Netflix and Prime (US)
 # - Plot the genre distribution of movies on Netflix and Prime
