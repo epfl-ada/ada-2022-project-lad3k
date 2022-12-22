@@ -386,50 +386,50 @@ ttest_ind(netflix_movies['numVotes'],
 # mean of revenues of movies on Prime.
 
 # %%
-prod_countrie_netflix = netflix_movies['production_countries'].apply(lambda x: x.replace('[', '').replace(
+prod_countries_netflix = netflix_movies['production_countries'].apply(lambda x: x.replace('[', '').replace(
     ']', '').replace('"', '').replace(' ', '').replace("'", '').split(',')).sum()
-prod_countrie_netflix = pd.Series(
-    prod_countrie_netflix).value_counts(normalize=False)
+prod_countries_netflix = pd.Series(
+    prod_countries_netflix).value_counts(normalize=False)
 prod_countrie_prime = prime_movies['production_countries'].apply(lambda x: x.replace('[', '').replace(
     ']', '').replace('"', '').replace(' ', '').replace("'", '').split(',')).sum()
 prod_countrie_prime = pd.Series(
     prod_countrie_prime).value_counts(normalize=False)
 
-df_prod_countrie = pd.concat(
-    [prod_countrie_netflix, prod_countrie_prime], axis=1)
-df_prod_countrie.columns = ['Netflix', 'Prime']
-df_prod_countrie = df_prod_countrie.fillna(0)
+df_prod_countries = pd.concat(
+    [prod_countries_netflix, prod_countrie_prime], axis=1)
+df_prod_countries.columns = ['Netflix', 'Prime']
+df_prod_countries = df_prod_countries.fillna(0)
 
 # df_prod_countrie to dataframe with columns 'production_countries' and 'Netflix' and 'Prime'
-df_prod_countrie = df_prod_countrie.reset_index()
-df_prod_countrie.columns = ['production_countries', 'Netflix', 'Prime']
+df_prod_countries = df_prod_countries.reset_index()
+df_prod_countries.columns = ['production_countries', 'Netflix', 'Prime']
 
 # %%
-df_prod_countrie
+df_prod_countries
 
 # %%
-df_prod_countrie
+df_prod_countries
 # turn netflix and prime columns into one column with values 'Netflix' and 'Prime'
-df_prod_countrie = df_prod_countrie.melt(id_vars=['production_countries'], value_vars=['Netflix', 'Prime'],
-                                         var_name='streaming_service', value_name='size')
-df_prod_countrie['size'] = df_prod_countrie['size']
+df_prod_countries = df_prod_countries.melt(id_vars=['production_countries'], value_vars=['Netflix', 'Prime'],
+                                           var_name='streaming_service', value_name='size')
+df_prod_countries['size'] = df_prod_countries['size']
 
 # %%
 # remove incorrect codes from production_countries
-df_prod_countrie = df_prod_countrie[df_prod_countrie['production_countries'] != '']
-df_prod_countrie = df_prod_countrie[df_prod_countrie['production_countries'] != 'SU']
-df_prod_countrie = df_prod_countrie[df_prod_countrie['production_countries'] != 'YU']
-df_prod_countrie = df_prod_countrie[df_prod_countrie['production_countries'] != 'XK']
-df_prod_countrie = df_prod_countrie[df_prod_countrie['production_countries'] != 'XC']
-df_prod_countrie = df_prod_countrie[df_prod_countrie['production_countries'] != 'AN']
+df_prod_countries = df_prod_countries[df_prod_countries['production_countries'] != '']
+df_prod_countries = df_prod_countries[df_prod_countries['production_countries'] != 'SU']
+df_prod_countries = df_prod_countries[df_prod_countries['production_countries'] != 'YU']
+df_prod_countries = df_prod_countries[df_prod_countries['production_countries'] != 'XK']
+df_prod_countries = df_prod_countries[df_prod_countries['production_countries'] != 'XC']
+df_prod_countries = df_prod_countries[df_prod_countries['production_countries'] != 'AN']
 
 # %%
 # iso2 to iso3
-df_prod_countrie['production_countries'] = df_prod_countrie['production_countries'].apply(
+df_prod_countries['production_countries'] = df_prod_countries['production_countries'].apply(
     lambda x: pycountry.countries.get(alpha_2=x).alpha_3)
 
 # %%
-fig = px.scatter_geo(df_prod_countrie, locations='production_countries', color='streaming_service',
+fig = px.scatter_geo(df_prod_countries, locations='production_countries', color='streaming_service',
                      hover_name='production_countries', size='size',
                      projection='natural earth')
 
@@ -439,10 +439,10 @@ fig.show()
 fig.write_html('html/worldmap.html')
 
 # %%
-df_prod_countrie
+df_prod_countries
 
 # %%
-fig = px.scatter_geo(df_prod_countrie, locations='production_countries', color='streaming_service',
+fig = px.scatter_geo(df_prod_countries, locations='production_countries', color='streaming_service',
                      hover_name='production_countries', size='size',
                      projection='natural earth')
 
@@ -451,37 +451,37 @@ fig.show()
 
 
 # %%
-prod_countrie_netflix = netflix_movies['production_countries'].apply(lambda x: x.replace('[', '').replace(
+prod_countries_netflix = netflix_movies['production_countries'].apply(lambda x: x.replace('[', '').replace(
     ']', '').replace('"', '').replace(' ', '').replace("'", '').split(',')).sum()
-prod_countrie_netflix = pd.Series(
-    prod_countrie_netflix).value_counts(normalize=True)
+prod_countries_netflix = pd.Series(
+    prod_countries_netflix).value_counts(normalize=True)
 prod_countrie_prime = prime_movies['production_countries'].apply(lambda x: x.replace(
     '[', '').replace(']', '').replace('"', '').replace(' ', '').replace("'", '').split(',')).sum()
 prod_countrie_prime = pd.Series(
     prod_countrie_prime).value_counts(normalize=True)
 
-df_prod_countrie = pd.concat(
-    [prod_countrie_netflix, prod_countrie_prime], axis=1)
-df_prod_countrie.columns = ['Netflix', 'Prime']
-df_prod_countrie = df_prod_countrie.fillna(0)
+df_prod_countries = pd.concat(
+    [prod_countries_netflix, prod_countrie_prime], axis=1)
+df_prod_countries.columns = ['Netflix', 'Prime']
+df_prod_countries = df_prod_countries.fillna(0)
 
 # df_prod_countrie to dataframe with columns 'production_countries' and 'Netflix' and 'Prime'
-df_prod_countrie = df_prod_countrie.reset_index()
-df_prod_countrie.columns = ['production_countries', 'Netflix', 'Prime']
+df_prod_countries = df_prod_countries.reset_index()
+df_prod_countries.columns = ['production_countries', 'Netflix', 'Prime']
 
 # # remove empty rows
 # df_prod_countrie = df_prod_countrie[df_prod_countrie['production_countries'] != '']
 
-df_prod_countrie = df_prod_countrie.sort_values(by='Prime', ascending=False)
+df_prod_countries = df_prod_countries.sort_values(by='Prime', ascending=False)
 
 # set a column as index
-df_prod_countrie = df_prod_countrie.set_index('production_countries')
+df_prod_countries = df_prod_countries.set_index('production_countries')
 # perform bootstatrap to get confidence interval
 
-ci_int = bootstrap((df_prod_countrie['Netflix'],), np.mean)
+ci_int = bootstrap((df_prod_countries['Netflix'],), np.mean)
 lower = [ci_int.confidence_interval.low]
 upper = [ci_int.confidence_interval.high]
-df_prod_countrie[1:30].plot(kind='bar', title='Number of movies per country in Netflix and Prime', figsize=(
+df_prod_countries[1:30].plot(kind='bar', title='Number of movies per country in Netflix and Prime', figsize=(
     10, 5), capsize=5, color=[NETFLIX_COLOR, PRIME_COLOR])
 
 
