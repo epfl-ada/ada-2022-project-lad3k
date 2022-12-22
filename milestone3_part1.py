@@ -50,9 +50,9 @@ from src.nlp_helper import get_topic_distribution
 from src.nlp_helper import get_topics
 from src.nlp_helper import get_wordnet_pos
 
-
-netflix_color = '#636EFA'
-prime_color = '#FFA15A'
+# Constants
+NETFLIX_COLOR = '#636EFA'
+PRIME_COLOR = '#FFA15A'
 # %%
 
 # %%
@@ -171,7 +171,7 @@ fig.add_trace(go.Scatterpolar(
     theta=both_genre['index'],
     fill='toself',
     name='Netflix',
-    marker_color=netflix_color
+    marker_color=NETFLIX_COLOR
 
 ))
 fig.add_trace(go.Scatterpolar(
@@ -179,7 +179,7 @@ fig.add_trace(go.Scatterpolar(
     theta=both_genre['index'],
     fill='toself',
     name='Prime',
-    marker_color=prime_color
+    marker_color=PRIME_COLOR
 ))
 
 fig.update_traces(fill='toself')
@@ -692,9 +692,9 @@ _netflix = df_directors[:20].Prime
 _idx = df_directors[:20].primaryName
 # plot netflix and prime on the same plot netflix using orange and blue
 fig = go.Figure()
-fig.add_trace(go.Bar(x=_idx, y=_prime, name='Prime', marker_color=prime_color))
+fig.add_trace(go.Bar(x=_idx, y=_prime, name='Prime', marker_color=PRIME_COLOR))
 fig.add_trace(go.Bar(x=_idx, y=_netflix, name='Netflix',
-              marker_color=netflix_color))
+              marker_color=NETFLIX_COLOR))
 fig.update_layout(barmode='group')
 # title of the plot
 fig.update_layout(
@@ -709,8 +709,6 @@ fig.write_html('directors.html')
 nltk.download('omw-1.4')
 nltk.download('averaged_perceptron_tagger')
 
-netflix_color = '#636EFA'
-prime_color = '#FFA15A'
 
 # %% [markdown]
 # ## NLP
@@ -988,9 +986,9 @@ prime_topics_dist = get_topic_distributions_for_movies(
 tick_positions = np.array(range(n_topics))
 bar_width = 0.4
 fig = go.Figure(data=[
-    go.Bar(name='Netflix', x=list(range(n_topics)), y=netflix_topics_dist, width=bar_width, marker_color=netflix_color,
+    go.Bar(name='Netflix', x=list(range(n_topics)), y=netflix_topics_dist, width=bar_width, marker_color=NETFLIX_COLOR,
            opacity=0.8),
-    go.Bar(name='Prime', x=list(range(n_topics)), y=prime_topics_dist, width=bar_width, marker_color=prime_color,
+    go.Bar(name='Prime', x=list(range(n_topics)), y=prime_topics_dist, width=bar_width, marker_color=PRIME_COLOR,
            opacity=0.8)
 ])
 
@@ -1047,14 +1045,14 @@ netflix_sentiments_subjectivity = [
 fig = make_subplots(rows=1, cols=2,
                     subplot_titles=('sentiment polarity distribution', 'sentiment subjectivity distribution'))
 data = [
-    go.Histogram(name='Netflix', x=netflix_sentiments_polarity, marker_color=netflix_color, opacity=0.5,
+    go.Histogram(name='Netflix', x=netflix_sentiments_polarity, marker_color=NETFLIX_COLOR, opacity=0.5,
                  histnorm='probability', xbins=dict(start=-1, end=1, size=0.1), legendgroup='Netflix'),
-    go.Histogram(name='Prime', x=prime_sentiments_polarity, marker_color=prime_color, opacity=0.5,
+    go.Histogram(name='Prime', x=prime_sentiments_polarity, marker_color=PRIME_COLOR, opacity=0.5,
                  histnorm='probability', xbins=dict(start=-1, end=1, size=0.1)),
-    go.Histogram(name='Netflix', x=netflix_sentiments_subjectivity, marker_color=netflix_color, opacity=0.5,
+    go.Histogram(name='Netflix', x=netflix_sentiments_subjectivity, marker_color=NETFLIX_COLOR, opacity=0.5,
                  histnorm='probability', xbins=dict(start=0, end=1, size=0.05), showlegend=False,
                  legendgroup='Netflix'),
-    go.Histogram(name='Prime', x=prime_sentiments_subjectivity, marker_color=prime_color, opacity=0.5,
+    go.Histogram(name='Prime', x=prime_sentiments_subjectivity, marker_color=PRIME_COLOR, opacity=0.5,
                  histnorm='probability', xbins=dict(start=0, end=1, size=0.05), showlegend=False),
 ]
 for i, elem in enumerate(data):
@@ -1075,21 +1073,21 @@ subjectivity_y_range = [0, 0.12]
 width = 1
 mean_median_lines = [
     go.Scatter(x=[netflix_polarity_mean]*2, y=polarity_y_range, name='Netflix Mean', legendgroup='Mean',
-               mode='lines', line=dict(color=netflix_color, width=width, dash='dash'), showlegend=False),
+               mode='lines', line=dict(color=NETFLIX_COLOR, width=width, dash='dash'), showlegend=False),
     go.Scatter(x=[netflix_polarity_median]*2, y=polarity_y_range, name='Netflix Median', legendgroup='Median',
-               mode='lines', line=dict(color=netflix_color, width=width, dash='dot'), showlegend=False),
+               mode='lines', line=dict(color=NETFLIX_COLOR, width=width, dash='dot'), showlegend=False),
     go.Scatter(x=[prime_polarity_mean]*2, y=polarity_y_range, mode='lines', name='Prime Mean',
-               line=dict(color=prime_color, width=width, dash='dash'), legendgroup='Mean', showlegend=False),
+               line=dict(color=PRIME_COLOR, width=width, dash='dash'), legendgroup='Mean', showlegend=False),
     go.Scatter(x=[prime_polarity_median]*2, y=polarity_y_range, legendgroup='Median', showlegend=False,
-               name='Prime Median', mode='lines', line=dict(color=prime_color, width=width, dash='dot')),
+               name='Prime Median', mode='lines', line=dict(color=PRIME_COLOR, width=width, dash='dot')),
     go.Scatter(x=[netflix_subjectivity_mean]*2, y=subjectivity_y_range, legendgroup='Mean', name='Netflix Mean',
-               showlegend=False, mode='lines', line=dict(color=netflix_color, width=width, dash='dash')),
+               showlegend=False, mode='lines', line=dict(color=NETFLIX_COLOR, width=width, dash='dash')),
     go.Scatter(x=[netflix_subjectivity_median]*2, y=subjectivity_y_range, legendgroup='Median', name='Netflix Median',
-               showlegend=False, mode='lines', line=dict(color=netflix_color, width=width, dash='dot')),
+               showlegend=False, mode='lines', line=dict(color=NETFLIX_COLOR, width=width, dash='dot')),
     go.Scatter(x=[prime_subjectivity_mean]*2, y=subjectivity_y_range, legendgroup='Mean', name='Prime Mean',
-               showlegend=False, mode='lines', line=dict(color=prime_color, width=width, dash='dash')),
+               showlegend=False, mode='lines', line=dict(color=PRIME_COLOR, width=width, dash='dash')),
     go.Scatter(x=[prime_subjectivity_median]*2, y=subjectivity_y_range, legendgroup='Median', name='Prime Median',
-               showlegend=False, mode='lines', line=dict(color=prime_color, width=width, dash='dot')),
+               showlegend=False, mode='lines', line=dict(color=PRIME_COLOR, width=width, dash='dot')),
 ]
 for i, elem in enumerate(mean_median_lines):
     fig.add_trace(elem, row=1, col=int(1 + i/4))
@@ -1251,7 +1249,7 @@ def plot_rating_distribution(df: pd.DataFrame, n: int):
             xbins=dict(start=0, end=10, size=0.1),
             opacity=0.5,
             name='Netflix',
-            marker_color=netflix_color,
+            marker_color=NETFLIX_COLOR,
         ),
         go.Histogram(
             x=df[df['on_prime']]['averageRating'],
@@ -1259,7 +1257,7 @@ def plot_rating_distribution(df: pd.DataFrame, n: int):
             xbins=dict(start=0, end=10, size=0.1),
             opacity=0.5,
             name='Prime',
-            marker_color=prime_color
+            marker_color=PRIME_COLOR
         ),
         go.Scatter(
             x=[df[df['on_netflix']]['averageRating'].mean()] * 2,
@@ -1267,7 +1265,7 @@ def plot_rating_distribution(df: pd.DataFrame, n: int):
             yaxis='y2',
             name='Netflix mean',
             mode='lines',
-            line=dict(color=netflix_color, width=1, dash='dash'),
+            line=dict(color=NETFLIX_COLOR, width=1, dash='dash'),
             legendgroup='Mean',
             showlegend=False,
         ),
@@ -1277,7 +1275,7 @@ def plot_rating_distribution(df: pd.DataFrame, n: int):
             yaxis='y2',
             name='Netflix median',
             mode='lines',
-            line=dict(color=netflix_color, width=1, dash='dot'),
+            line=dict(color=NETFLIX_COLOR, width=1, dash='dot'),
             legendgroup='Median',
             showlegend=False,
         ),
@@ -1287,7 +1285,7 @@ def plot_rating_distribution(df: pd.DataFrame, n: int):
             yaxis='y2',
             name='Prime mean',
             mode='lines',
-            line=dict(color=prime_color, width=1, dash='dash'),
+            line=dict(color=PRIME_COLOR, width=1, dash='dash'),
             legendgroup='Mean',
             showlegend=False,
         ),
@@ -1297,7 +1295,7 @@ def plot_rating_distribution(df: pd.DataFrame, n: int):
             yaxis='y2',
             name='Prime median',
             mode='lines',
-            line=dict(color=prime_color, width=1, dash='dot'),
+            line=dict(color=PRIME_COLOR, width=1, dash='dot'),
             legendgroup='Median',
             showlegend=False,
         ),
@@ -1460,7 +1458,7 @@ def plot_hist_matching(df_netflix: pd.DataFrame, df_prime: pd.DataFrame, n: int)
                     name='Netflix',
                     histnorm='probability',
                     legendgroup='Netflix',
-                    marker_color=netflix_color,
+                    marker_color=NETFLIX_COLOR,
                     bingroup=col,
                     showlegend=False,
                 ),
@@ -1469,7 +1467,7 @@ def plot_hist_matching(df_netflix: pd.DataFrame, df_prime: pd.DataFrame, n: int)
                     name='Prime',
                     histnorm='probability',
                     legendgroup='Prime',
-                    marker_color=prime_color,
+                    marker_color=PRIME_COLOR,
                     bingroup=col,
                     showlegend=False,
                 ),
@@ -1488,7 +1486,7 @@ def plot_hist_matching(df_netflix: pd.DataFrame, df_prime: pd.DataFrame, n: int)
                     name='Netflix',
                     histnorm='probability',
                     legendgroup='Netflix',
-                    marker_color=netflix_color,
+                    marker_color=NETFLIX_COLOR,
                     xaxis='x2',
                     xbins=dict(start=0, end=10, size=0.1),
                     # transforms=[dict(type='log')]
@@ -1499,7 +1497,7 @@ def plot_hist_matching(df_netflix: pd.DataFrame, df_prime: pd.DataFrame, n: int)
                     name='Prime',
                     histnorm='probability',
                     legendgroup='Netflix',
-                    marker_color=prime_color,
+                    marker_color=PRIME_COLOR,
                 ),
             ]
 
@@ -1558,8 +1556,8 @@ def plot_genre_distribution(df_netflix: pd.DataFrame, df_prime: pd.DataFrame, n:
     bar_width = 0.35
     fig = go.Figure(data=[
         go.Bar(name='Netflix', x=x_positions, y=netflix_categories_dist*100, width=bar_width,
-               marker_color=netflix_color, opacity=0.8),
-        go.Bar(name='Prime', x=x_positions, y=prime_categories_dist*100, width=bar_width, marker_color=prime_color,
+               marker_color=NETFLIX_COLOR, opacity=0.8),
+        go.Bar(name='Prime', x=x_positions, y=prime_categories_dist*100, width=bar_width, marker_color=PRIME_COLOR,
                opacity=0.8)
     ])
 
