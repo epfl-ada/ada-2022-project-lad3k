@@ -54,8 +54,6 @@ from src.nlp_helper import get_wordnet_pos
 NETFLIX_COLOR = '#636EFA'
 PRIME_COLOR = '#FFA15A'
 # %%
-
-# %%
 df = prepare_df()
 df.head()
 
@@ -204,7 +202,7 @@ fig.update_layout(
         'yanchor': 'top'})
 
 # generate html file
-fig.write_html('radar.html')
+fig.write_html('html/radar.html')
 fig.show()
 
 
@@ -536,7 +534,7 @@ fig = px.scatter_geo(df_prod_countrie, locations='production_countries', color='
 
 fig.show()
 
-fig.write_html('worldmap.html')
+fig.write_html('html/worldmap.html')
 
 # %%
 df_prod_countrie
@@ -701,7 +699,7 @@ fig.update_layout(
     title_text='Density of movies per director in Netflix and Prime')
 fig.show()
 # generate html of the plot
-fig.write_html('directors.html')
+fig.write_html('html/directors.html')
 
 # %%
 
