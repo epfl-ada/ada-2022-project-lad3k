@@ -50,8 +50,8 @@ from src.nlp_helper import get_topics
 from src.nlp_helper import get_wordnet_pos
 
 # Constants
-NETFLIX_COLOR = '#636EFA'
-PRIME_COLOR = '#FFA15A'
+NETFLIX_COLOR = '#E50914'
+PRIME_COLOR = '#00A8E1'
 
 # fix a seed for reproducibility
 np.random.seed(42)
@@ -152,7 +152,8 @@ both_genre['nb_movies_prime'] = both_genre['nb_movies_prime'] / \
 
 both_genre = both_genre.sort_values(by='total_movies', ascending=False)
 both_genre.drop('total_movies', axis=1, inplace=True)
-both_genre.plot(kind='bar', figsize=(15, 5))
+both_genre.plot(kind='bar', figsize=(15, 5),
+                color=[NETFLIX_COLOR, PRIME_COLOR])
 
 
 plt.title('Movies genre on Netflix and Prime')
@@ -228,210 +229,75 @@ def plot_distribution(df: pd.DataFrame, column: str):
     df['on_netflix'] = df['on_netflix'].astype(bool)
     df['on_prime'] = df['on_prime'].astype(bool)
 
-    # plot the movie rating distribution on Netflix and Prime
-    # rating is in column "averageRating"
-    # a col "streaming_service" tells us if the movie is on Netflix, Prime or both
+    def _plt_hist(bins=20, is_netflix=True, log=False):
+        plt.hist(
+            df[df['on_netflix' if is_netflix else 'on_prime']][column],
+            bins=bins,
+            alpha=0.5,
+            density=True,
+            color=NETFLIX_COLOR if is_netflix else PRIME_COLOR,
+            label='Netflix' if is_netflix else 'Prime',
+            log=log,
+        )
 
     if column == 'averageRating':
-        plt.hist(df[df['on_netflix']][column],
-                 bins=np.arange(0, 10.1, 0.5),
-                 alpha=0.5,
-                 density=True,
-                 color='C0',
-                 label='Netflix')
-        plt.axvline(df[df['on_netflix']][column].mean(),
-                    color='C0', linestyle='dashed', linewidth=1)
-        plt.axvline(df[df['on_netflix']][column].median(),
-                    color='C0', linestyle='dotted', linewidth=1)
-
-        plt.hist(df[df['on_prime']][column],
-                 bins=np.arange(0, 10.1, 0.5),
-                 alpha=0.5,
-                 density=True,
-                 color='C1',
-                 label='Prime')
-        plt.axvline(df[df['on_prime']][column].mean(),
-                    color='C1', linestyle='dashed', linewidth=1)
-        plt.axvline(df[df['on_prime']][column].median(),
-                    color='C1', linestyle='dotted', linewidth=1)
-
-        # add legend for hist and mean/median
-        legend_elements = [
-            plt.Line2D([0], [0], color='C0', lw=6, label='Netflix'),
-            plt.Line2D([0], [0], color='C1', lw=6, label='Prime'),
-            plt.Line2D([0], [0], color='k', lw=3,
-                       linestyle='dashed', label='Mean'),
-            plt.Line2D([0], [0], color='k', lw=3,
-                       linestyle='dotted', label='Median')
-        ]
-        plt.legend(handles=legend_elements, loc='upper right')
+        _plt_hist(bins=np.arange(0, 10.1, 0.5), is_netflix=True)
+        _plt_hist(bins=np.arange(0, 10.1, 0.5), is_netflix=False)
 
         plt.title('Movie rating distribution on Netflix and Prime')
         plt.xlabel('Average rating')
-        plt.ylabel('Density')
-        plt.show()
 
-    if column == 'runtimeMinutes':
-        plt.hist(df[df['on_netflix']][column],
-                 bins=np.arange(0, 350, 10),
-                 alpha=0.5,
-                 density=True,
-                 color='C0',
-                 label='Netflix')
-        plt.axvline(df[df['on_netflix']][column].mean(),
-                    color='C0', linestyle='dashed', linewidth=1)
-        plt.axvline(df[df['on_netflix']][column].median(),
-                    color='C0', linestyle='dotted', linewidth=1)
-
-        plt.hist(df[df['on_prime']][column],
-                 bins=np.arange(0, 350, 10),
-                 alpha=0.5,
-                 density=True,
-                 color='C1',
-                 label='Prime')
-        plt.axvline(df[df['on_prime']][column].mean(),
-                    color='C1', linestyle='dashed', linewidth=1)
-        plt.axvline(df[df['on_prime']][column].median(),
-                    color='C1', linestyle='dotted', linewidth=1)
-
-        # add legend for hist and mean/median
-        legend_elements = [
-            plt.Line2D([0], [0], color='C0', lw=6, label='Netflix'),
-            plt.Line2D([0], [0], color='C1', lw=6, label='Prime'),
-            plt.Line2D([0], [0], color='k', lw=3,
-                       linestyle='dashed', label='Mean',),
-            plt.Line2D([0], [0], color='k', lw=3,
-                       linestyle='dotted', label='Median')
-        ]
-        plt.legend(handles=legend_elements, loc='upper right')
+    elif column == 'runtimeMinutes':
+        _plt_hist(bins=np.arange(0, 350, 10), is_netflix=True)
+        _plt_hist(bins=np.arange(0, 350, 10), is_netflix=False)
 
         plt.title('Movie run time distribution on Netflix and Prime')
         plt.xlabel('run rime (min)')
-        plt.ylabel('Density ')
-        plt.show()
 
-    if column == 'release_year':
-        plt.hist(df[df['on_netflix']][column],
-                 bins=20,
-                 alpha=0.5,
-                 density=True,
-                 color='C0',
-                 label='Netflix',
-                 log=True)
-        plt.axvline(df[df['on_netflix']][column].mean(),
-                    color='C0', linestyle='dashed', linewidth=1)
-        plt.axvline(df[df['on_netflix']][column].median(),
-                    color='C0', linestyle='dotted', linewidth=1)
-
-        plt.hist(df[df['on_prime']][column],
-                 bins=20,
-                 alpha=0.5,
-                 density=True,
-                 color='C1',
-                 label='Prime',
-                 log=True)
-        plt.axvline(df[df['on_prime']][column].mean(),
-                    color='C1', linestyle='dashed', linewidth=1)
-        plt.axvline(df[df['on_prime']][column].median(),
-                    color='C1', linestyle='dotted', linewidth=1)
-
-        # add legend for hist and mean/median
-        legend_elements = [
-            plt.Line2D([0], [0], color='C0', lw=6, label='Netflix'),
-            plt.Line2D([0], [0], color='C1', lw=6, label='Prime'),
-            plt.Line2D([0], [0], color='k', lw=3,
-                       linestyle='dashed', label='Mean',),
-            plt.Line2D([0], [0], color='k', lw=3,
-                       linestyle='dotted', label='Median')
-        ]
-        plt.legend(handles=legend_elements, loc='upper right')
+    elif column == 'release_year':
+        _plt_hist(bins=20, is_netflix=True, log=True)
+        _plt_hist(bins=20, is_netflix=False, log=True)
 
         plt.title('Movie release year distribution on Netflix and Prime')
         plt.xlabel('release year')
-        plt.ylabel('Density ')
-        plt.show()
 
     if column == 'revenue':
-        plt.hist(df[df['on_netflix']][column],
-                 bins=20,
-                 alpha=0.5,
-                 color='C0',
-                 density=True,
-                 label='Netflix',
-                 log=True)
-        plt.axvline(df[df['on_netflix']][column].mean(),
-                    color='C0', linestyle='dashed', linewidth=1)
-        plt.axvline(df[df['on_netflix']][column].median(),
-                    color='C0', linestyle='dotted', linewidth=1)
-
-        plt.hist(df[df['on_prime']][column],
-                 bins=20,
-                 alpha=0.5,
-                 color='C1',
-                 density=True,
-                 label='Prime',
-                 log=True)
-        plt.axvline(df[df['on_prime']][column].mean(),
-                    color='C1', linestyle='dashed', linewidth=1)
-        plt.axvline(df[df['on_prime']][column].median(),
-                    color='C1', linestyle='dotted', linewidth=1)
-
-        # add legend for hist and mean/median
-        legend_elements = [
-            plt.Line2D([0], [0], color='C0', lw=6, label='Netflix'),
-            plt.Line2D([0], [0], color='C1', lw=6, label='Prime'),
-            plt.Line2D([0], [0], color='k', lw=3,
-                       linestyle='dashed', label='Mean',),
-            plt.Line2D([0], [0], color='k', lw=3,
-                       linestyle='dotted', label='Median')
-        ]
-        plt.legend(handles=legend_elements, loc='upper right')
+        _plt_hist(bins=20, is_netflix=True, log=True)
+        _plt_hist(bins=20, is_netflix=False, log=True)
 
         plt.title('Movies revenues distribution on Netflix and Prime')
         plt.xlabel('revenue ($)')
-        plt.ylabel('Density ')
-        plt.show()
 
     if column == 'numVotes':
-        plt.hist(df[df['on_netflix']][column],
-                 bins=20,
-                 alpha=0.5,
-                 color='C0',
-                 density=True,
-                 label='Netflix',
-                 log=True)
-        plt.axvline(df[df['on_netflix']][column].mean(),
-                    color='C0', linestyle='dashed', linewidth=1)
-        plt.axvline(df[df['on_netflix']][column].median(),
-                    color='C0', linestyle='dotted', linewidth=1)
-
-        plt.hist(df[df['on_prime']][column],
-                 bins=20,
-                 alpha=0.5,
-                 color='C1',
-                 density=True,
-                 label='Prime',
-                 log=True)
-        plt.axvline(df[df['on_prime']][column].mean(),
-                    color='C1', linestyle='dashed', linewidth=1)
-        plt.axvline(df[df['on_prime']][column].median(),
-                    color='C1', linestyle='dotted', linewidth=1)
-
-        # add legend for hist and mean/median
-        legend_elements = [
-            plt.Line2D([0], [0], color='C0', lw=6, label='Netflix'),
-            plt.Line2D([0], [0], color='C1', lw=6, label='Prime'),
-            plt.Line2D([0], [0], color='k', lw=3,
-                       linestyle='dashed', label='Mean',),
-            plt.Line2D([0], [0], color='k', lw=3,
-                       linestyle='dotted', label='Median')
-        ]
-        plt.legend(handles=legend_elements, loc='upper right')
+        _plt_hist(bins=20, is_netflix=True, log=True)
+        _plt_hist(bins=20, is_netflix=False, log=True)
 
         plt.title('Movies numner of votes on Netflix and Prime')
         plt.xlabel('number of votes')
-        plt.ylabel('Density ')
-        plt.show()
+
+    plt.axvline(df[df['on_netflix']][column].mean(),
+                color=NETFLIX_COLOR, linestyle='dashed', linewidth=1)
+    plt.axvline(df[df['on_netflix']][column].median(),
+                color=NETFLIX_COLOR, linestyle='dotted', linewidth=1)
+
+    plt.axvline(df[df['on_prime']][column].mean(),
+                color=PRIME_COLOR, linestyle='dashed', linewidth=1)
+    plt.axvline(df[df['on_prime']][column].median(),
+                color=PRIME_COLOR, linestyle='dotted', linewidth=1)
+
+    # add legend for hist and mean/median
+    legend_elements = [
+        plt.Line2D([0], [0], color=NETFLIX_COLOR, lw=6, label='Netflix'),
+        plt.Line2D([0], [0], color=PRIME_COLOR, lw=6, label='Prime'),
+        plt.Line2D([0], [0], color='k', lw=3,
+                   linestyle='dashed', label='Mean'),
+        plt.Line2D([0], [0], color='k', lw=3,
+                   linestyle='dotted', label='Median')
+    ]
+    plt.legend(handles=legend_elements, loc='upper right')
+
+    plt.ylabel('Density')
+    plt.show()
 
 
 # %%
@@ -589,7 +455,7 @@ ci_int = bootstrap((df_prod_countrie['Netflix'],), np.mean)
 lower = [ci_int.confidence_interval.low]
 upper = [ci_int.confidence_interval.high]
 df_prod_countrie[1:30].plot(kind='bar', title='Number of movies per country in Netflix and Prime', figsize=(
-    10, 5), capsize=5)
+    10, 5), capsize=5, color=[NETFLIX_COLOR, PRIME_COLOR])
 
 
 # %%
@@ -623,13 +489,13 @@ df_prod_comp = df_prod_comp.sort_values(by='sum', ascending=False)
 df_prod_comp = df_prod_comp.drop(columns=['sum'])
 
 df_prod_comp[1:30].plot(kind='bar', title='Number of movies per production company in Netflix and Prime', figsize=(
-    10, 5))
+    10, 5), color=[NETFLIX_COLOR, PRIME_COLOR])
 
 # %%
 # df_prod_comp = df_prod_comp[(df_prod_comp['Netflix'] > 0) & (df_prod_comp['Prime'] > 0)]
 
 # df_prod_comp[:20].plot(kind='bar', title='Number of movies per production company in Netflix and Prime',
-# figsize=(10, 5))
+# figsize=(10, 5), color=[NETFLIX_COLOR, PRIME_COLOR])
 
 # %% [markdown]
 # > There are 900 production companies in common out of 6286. They have very different prodcution companies.
@@ -657,7 +523,8 @@ df_writers = df_writers.sort_values(by='sum', ascending=False)
 df_writers = df_writers.drop(columns=['sum'])
 
 df_writers[:20].plot(
-    kind='bar', title='Number of movies per writer in Netflix and Prime', figsize=(10, 5))
+    kind='bar', title='Number of movies per writer in Netflix and Prime', figsize=(10, 5),
+    color=[NETFLIX_COLOR, PRIME_COLOR])
 
 # %%
 directors_netflix = pd.Series(netflix_movies['directors']).value_counts(
@@ -690,7 +557,8 @@ df_directors = df_directors.merge(
 df_directors = df_directors[['primaryName', 'Netflix', 'Prime']]
 
 df_directors[:20].plot(
-    kind='bar', title='Number of movies per director in Netflix and Prime', figsize=(10, 5))
+    kind='bar', title='Number of movies per director in Netflix and Prime',
+    figsize=(10, 5), color=[NETFLIX_COLOR, PRIME_COLOR])
 
 # %%
 # plot directors_netflix and directors_prime using plotly using the same x-axis values
@@ -1425,7 +1293,7 @@ matching_df.head()
 # pairplot but only with averageRating
 sns.pairplot(df[['averageRating', 'numVotes', 'directors',
                  'release_year', 'runtimeMinutes', 'streaming_service', 'sentiments_polarity']],
-             hue='streaming_service')
+             hue='streaming_service', palette=[NETFLIX_COLOR, PRIME_COLOR, 'green'])
 plt.show()
 
 # %%
