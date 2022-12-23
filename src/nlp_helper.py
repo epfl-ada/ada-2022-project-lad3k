@@ -115,7 +115,6 @@ def print_movie_plot_with_topic_words(topic_distributions, topics, df_plots, num
         df_plots (pandas.DataFrame): dataframe containing the plots
         num_plots (int): number of plots to print
     """
-    # TODO add random sampling
     for i, distribution in enumerate(topic_distributions[:num_plots]):
         print('plot: {}'.format(df_plots.iloc[i]['overview']))
         # get the value of the topic with the highest probability
